@@ -9,6 +9,8 @@
 
 ArchViz AI is an end-to-end platform that transforms architectural CAD files (DWG/DXF) into photorealistic renders and interactive walkthroughs using AI. The system features an LLM-powered material selection assistant that guides architects through texture and material choices.
 
+**Available as both Web App and Desktop App (Electron)** for offline local rendering.
+
 ### Key Features
 
 - **Native DWG Support**: Direct parsing of AutoCAD files without manual export
@@ -17,6 +19,7 @@ ArchViz AI is an end-to-end platform that transforms architectural CAD files (DW
 - **PBR Texture Generation**: AI-generated physically-based rendering textures
 - **3D Walkthroughs**: Gaussian Splatting for real-time navigable scenes
 - **Video Export**: Smooth walkthrough videos with camera path control
+- **Desktop App**: Native Electron app with offline rendering and local GPU support
 
 ## Architecture
 
@@ -44,6 +47,16 @@ ArchViz AI is an end-to-end platform that transforms architectural CAD files (DW
 │               └────────────────┘    └────────────────┘                     │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         DESKTOP APP (ELECTRON)                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  • Native file system access for DWG files                                  │
+│  • Local GPU rendering (no upload required)                                 │
+│  • File watching for auto-reload from CAD software                          │
+│  • Offline mode with cached AI models                                       │
+│  • macOS, Windows, Linux support                                            │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Tech Stack
@@ -57,6 +70,7 @@ ArchViz AI is an end-to-end platform that transforms architectural CAD files (DW
 | Rendering | ComfyUI, ControlNet++, Flux.1 |
 | Walkthroughs | Gaussian Splatting, Stable Video Diffusion |
 | Frontend | Next.js, Three.js, React Three Fiber |
+| Desktop | Electron, electron-builder |
 | Backend | FastAPI, Redis, PostgreSQL |
 
 ## Roadmap
@@ -66,6 +80,7 @@ ArchViz AI is an end-to-end platform that transforms architectural CAD files (DW
 - [#2](../../issues/2) 3D Model Generation from Floor Plan
 - [#3](../../issues/3) Single-View ControlNet Render Pipeline
 - [#4](../../issues/4) Web Interface MVP
+- [#17](../../issues/17) **Electron Desktop Application** 🖥️
 
 ### Phase 2: Material System
 - [#5](../../issues/5) LLM Material Recommendation Engine
@@ -111,7 +126,7 @@ cd frontend && npm install
 python scripts/download_models.py
 ```
 
-### Quick Start
+### Quick Start (Web)
 
 ```bash
 # Start the backend
@@ -119,6 +134,19 @@ python -m uvicorn api.main:app --reload
 
 # Start the frontend (in another terminal)
 cd frontend && npm run dev
+```
+
+### Quick Start (Desktop)
+
+```bash
+# Install desktop dependencies
+cd desktop && npm install
+
+# Run in development mode
+npm run electron:dev
+
+# Build for production
+npm run electron:build
 ```
 
 ## Project Structure
@@ -139,6 +167,10 @@ archviz-ai/
 │   ├── components/
 │   ├── pages/
 │   └── lib/
+├── desktop/                # Electron desktop app
+│   ├── electron/           # Main process
+│   ├── src/                # Shared frontend
+│   └── resources/          # App icons
 ├── models/                 # AI model weights
 ├── scripts/                # Utility scripts
 └── tests/                  # Test suite
@@ -155,6 +187,15 @@ archviz-ai/
 | Video Gen | 16GB VRAM | 24GB VRAM |
 | Gaussian Splat | 8GB VRAM | 24GB VRAM |
 
+## Downloads
+
+| Platform | Download |
+|----------|----------|
+| macOS (Apple Silicon) | Coming Soon |
+| macOS (Intel) | Coming Soon |
+| Windows | Coming Soon |
+| Linux (AppImage) | Coming Soon |
+
 ## Contributing
 
 Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) for details.
@@ -170,3 +211,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [ControlNet](https://github.com/lllyasviel/ControlNet) - Conditional image generation
 - [3D Gaussian Splatting](https://github.com/graphdeco-inria/gaussian-splatting) - Real-time rendering
 - [ComfyUI](https://github.com/comfyanonymous/ComfyUI) - Diffusion workflow
+- [Electron](https://www.electronjs.org/) - Desktop application framework
