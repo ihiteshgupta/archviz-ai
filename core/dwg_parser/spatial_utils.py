@@ -3,8 +3,10 @@
 Uses Shapely for robust geometric operations.
 """
 
-from typing import List, Tuple, Optional
-from shapely.geometry import Point, Polygon as ShapelyPolygon, LineString
+from typing import List, Optional, Tuple
+
+from shapely.geometry import LineString, Point
+from shapely.geometry import Polygon as ShapelyPolygon
 from shapely.validation import make_valid
 
 Point2D = Tuple[float, float]
@@ -58,9 +60,7 @@ def polygon_centroid(polygon: List[Point2D]) -> Point2D:
     return (c.x, c.y)
 
 
-def segments_intersect(
-    p1: Point2D, p2: Point2D, p3: Point2D, p4: Point2D
-) -> bool:
+def segments_intersect(p1: Point2D, p2: Point2D, p3: Point2D, p4: Point2D) -> bool:
     """Check if two line segments intersect.
 
     Args:
@@ -93,7 +93,7 @@ def find_intersection_point(
 
     if intersection.is_empty:
         return None
-    if intersection.geom_type == 'Point':
+    if intersection.geom_type == "Point":
         return (intersection.x, intersection.y)
     return None
 
@@ -112,7 +112,7 @@ def make_polygon_valid(polygon: List[Point2D]) -> List[Point2D]:
     poly = ShapelyPolygon(polygon)
     if not poly.is_valid:
         poly = make_valid(poly)
-    if poly.geom_type == 'Polygon':
+    if poly.geom_type == "Polygon":
         return list(poly.exterior.coords)[:-1]
     return polygon
 
