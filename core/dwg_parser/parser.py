@@ -4,22 +4,21 @@ Extracts architectural elements (walls, doors, windows, rooms) from DXF files
 using the ezdxf library.
 """
 
+import json
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional, Tuple, Dict, Any
-import json
+from typing import Any, List, Optional, Tuple
 
 import ezdxf
 from ezdxf.document import Drawing
-from ezdxf.entities import DXFEntity, LWPolyline, Line, Insert, Circle, Arc
-from ezdxf.math import Vec2
+from ezdxf.entities import DXFEntity, Insert, Line, LWPolyline
 
-from .elements import Wall, Door, Window, Room, Dimension, Point2D, DoorSwing, WindowType
-from .converter import convert_dwg_to_dxf, is_dwg_file, is_dxf_file
-from .wall_graph import WallGraph
+from .converter import convert_dwg_to_dxf, is_dwg_file
+from .elements import Dimension, Door, Point2D, Room, Wall, Window
 from .room_classifier import RoomClassifier, RoomContext
-from .spatial_utils import point_in_polygon, polygon_centroid, polygon_area
+from .spatial_utils import point_in_polygon, polygon_area, polygon_centroid
+from .wall_graph import WallGraph
 
 logger = logging.getLogger(__name__)
 
@@ -230,7 +229,9 @@ class DWGParser:
         layer_lower = layer_name.lower()
 
         # Check custom layers first
-        if layer_name in self.wall_layers or layer_lower in [l.lower() for l in self.wall_layers]:
+        if layer_name in self.wall_layers or layer_lower in [
+            layer.lower() for layer in self.wall_layers
+        ]:
             return True
 
         # Check common patterns
@@ -240,7 +241,9 @@ class DWGParser:
         """Check if layer name indicates doors."""
         layer_lower = layer_name.lower()
 
-        if layer_name in self.door_layers or layer_lower in [l.lower() for l in self.door_layers]:
+        if layer_name in self.door_layers or layer_lower in [
+            layer.lower() for layer in self.door_layers
+        ]:
             return True
 
         return any(pattern in layer_lower for pattern in DOOR_LAYER_PATTERNS)
@@ -250,7 +253,7 @@ class DWGParser:
         layer_lower = layer_name.lower()
 
         if layer_name in self.window_layers or layer_lower in [
-            l.lower() for l in self.window_layers
+            layer.lower() for layer in self.window_layers
         ]:
             return True
 
@@ -460,9 +463,11 @@ class DWGParser:
                             entity.dxf.defpoint2.x * scale,
                             entity.dxf.defpoint2.y * scale,
                         ),
-                        value=entity.dxf.actual_measurement * scale
-                        if hasattr(entity.dxf, "actual_measurement")
-                        else 0,
+                        value=(
+                            entity.dxf.actual_measurement * scale
+                            if hasattr(entity.dxf, "actual_measurement")
+                            else 0
+                        ),
                         text=entity.dxf.text if hasattr(entity.dxf, "text") else "",
                     )
                     self._floor_plan.dimensions.append(dim)
@@ -692,7 +697,7 @@ class DWGParser:
                     # Calculate distance from centroid
                     dx = position[0] - centroid[0]
                     dy = position[1] - centroid[1]
-                    distance = (dx ** 2 + dy ** 2) ** 0.5
+                    distance = (dx**2 + dy**2) ** 0.5
 
                     if distance <= radius and text_content:
                         texts.append(text_content.strip())

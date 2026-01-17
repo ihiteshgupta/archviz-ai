@@ -1,10 +1,9 @@
 """Architectural element data classes for floor plan parsing."""
 
-from dataclasses import dataclass, field
-from typing import List, Tuple, Optional
-from enum import Enum
 import uuid
-
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import List, Optional, Tuple
 
 Point2D = Tuple[float, float]
 Point3D = Tuple[float, float, float]
@@ -12,6 +11,7 @@ Point3D = Tuple[float, float, float]
 
 class DoorSwing(Enum):
     """Door swing direction."""
+
     LEFT = "left"
     RIGHT = "right"
     DOUBLE = "double"
@@ -20,6 +20,7 @@ class DoorSwing(Enum):
 
 class WindowType(Enum):
     """Window type classification."""
+
     SINGLE = "single"
     DOUBLE = "double"
     SLIDING = "sliding"
@@ -47,7 +48,7 @@ class Wall:
         for i in range(len(self.points) - 1):
             dx = self.points[i + 1][0] - self.points[i][0]
             dy = self.points[i + 1][1] - self.points[i][1]
-            total += (dx ** 2 + dy ** 2) ** 0.5
+            total += (dx**2 + dy**2) ** 0.5
         return total
 
     @property
@@ -160,7 +161,7 @@ class Room:
             j = (i + 1) % n
             dx = self.polygon[j][0] - self.polygon[i][0]
             dy = self.polygon[j][1] - self.polygon[i][1]
-            total += (dx ** 2 + dy ** 2) ** 0.5
+            total += (dx**2 + dy**2) ** 0.5
         return total
 
     @property
