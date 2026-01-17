@@ -116,37 +116,42 @@ ArchViz AI is an end-to-end platform that transforms architectural CAD files (DW
 git clone https://github.com/ihiteshgupta/archviz-ai.git
 cd archviz-ai
 
-# Install Python dependencies
-pip install -r requirements.txt
+# Install all dependencies (Python + Node.js)
+npm run setup
 
-# Install Node dependencies
-cd frontend && npm install
-
-# Download AI models
-python scripts/download_models.py
+# Or install separately:
+pip install -e .                    # Python dependencies
+cd frontend && npm install          # Frontend dependencies
+cd ../electron && npm install       # Desktop app dependencies
 ```
 
 ### Quick Start (Web)
 
 ```bash
-# Start the backend
-python -m uvicorn api.main:app --reload
+# Start both API and frontend concurrently
+npm run dev
 
-# Start the frontend (in another terminal)
-cd frontend && npm run dev
+# Or start separately:
+npm run dev:api       # Start FastAPI backend (port 8000)
+npm run dev:frontend  # Start Next.js frontend (port 3000)
 ```
+
+Then open http://localhost:3000 in your browser.
 
 ### Quick Start (Desktop)
 
 ```bash
-# Install desktop dependencies
-cd desktop && npm install
+# Install Electron dependencies
+cd electron && npm install
 
 # Run in development mode
-npm run electron:dev
+npm run dev
 
 # Build for production
-npm run electron:build
+npm run build
+npm run package:mac   # For macOS
+npm run package:win   # For Windows
+npm run package:linux # For Linux
 ```
 
 ## Project Structure
@@ -154,26 +159,41 @@ npm run electron:build
 ```
 archviz-ai/
 ├── api/                    # FastAPI backend
-│   ├── routes/
-│   ├── services/
-│   └── main.py
+│   ├── routes/             # API route handlers
+│   │   ├── health.py       # Health check endpoints
+│   │   ├── projects.py     # Project management
+│   │   ├── render.py       # Render job management
+│   │   └── materials.py    # Material library & presets
+│   └── main.py             # FastAPI application
 ├── core/                   # Core processing modules
 │   ├── dwg_parser/         # DWG/DXF parsing
-│   ├── model_gen/          # 3D model generation
-│   ├── materials/          # Material system
-│   ├── render/             # AI rendering pipeline
-│   └── walkthrough/        # Video/splat generation
+│   │   ├── elements.py     # Architectural element models
+│   │   ├── converter.py    # DWG to DXF conversion
+│   │   └── parser.py       # Main parsing logic
+│   ├── model_gen/          # 3D model generation (planned)
+│   ├── materials/          # Material system (planned)
+│   ├── render/             # AI rendering pipeline (planned)
+│   └── walkthrough/        # Video/splat generation (planned)
 ├── frontend/               # Next.js web app
-│   ├── components/
-│   ├── pages/
-│   └── lib/
-├── desktop/                # Electron desktop app
-│   ├── electron/           # Main process
-│   ├── src/                # Shared frontend
-│   └── resources/          # App icons
-├── models/                 # AI model weights
-├── scripts/                # Utility scripts
-└── tests/                  # Test suite
+│   ├── src/
+│   │   ├── app/            # Next.js App Router pages
+│   │   ├── components/     # React components
+│   │   │   ├── FileUpload.tsx
+│   │   │   ├── FloorPlanViewer.tsx
+│   │   │   ├── FloorPlan3DViewer.tsx
+│   │   │   └── ProjectCard.tsx
+│   │   ├── lib/            # Utilities & API client
+│   │   └── types/          # TypeScript definitions
+│   └── package.json
+├── electron/               # Electron desktop app
+│   ├── src/
+│   │   ├── main.ts         # Main process
+│   │   └── preload.ts      # Preload script
+│   ├── resources/          # App icons
+│   └── package.json
+├── pyproject.toml          # Python project config
+├── package.json            # Root package.json with scripts
+└── README.md
 ```
 
 ## Hardware Requirements
