@@ -27,6 +27,9 @@ dependencies = [
     "anthropic>=0.18.0",
     # Firebase Admin SDK for push notifications
     "firebase-admin>=6.4.0",
+    # Geometry processing
+    "shapely>=2.0.0",
+    "rtree>=1.2.0",
 ]
 
 [project.optional-dependencies]
