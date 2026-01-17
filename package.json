@@ -1,0 +1,33 @@
+{
+  "name": "archviz-ai",
+  "version": "0.1.0",
+  "description": "AI-Powered Architectural Visualization System",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "electron"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:frontend\"",
+    "dev:api": "cd api && uvicorn main:app --reload --host 0.0.0.0 --port 8000",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:electron": "cd electron && npm run dev",
+    "build": "npm run build:frontend && npm run build:electron",
+    "build:frontend": "cd frontend && npm run build",
+    "build:electron": "cd electron && npm run build",
+    "install:all": "npm install && cd frontend && npm install && cd ../electron && npm install",
+    "install:python": "pip install -e .",
+    "setup": "npm run install:all && npm run install:python",
+    "lint": "cd frontend && npm run lint",
+    "package:mac": "cd electron && npm run package:mac",
+    "package:win": "cd electron && npm run package:win",
+    "package:linux": "cd electron && npm run package:linux"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}
