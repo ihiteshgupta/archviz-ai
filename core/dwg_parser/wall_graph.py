@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from rtree import index
 
-from .elements import Wall, Point2D
+from .elements import Point2D, Wall
 from .spatial_utils import distance
 
 
@@ -103,11 +103,7 @@ class WallGraph:
         self.nodes[node.id] = node
 
         x, y = position
-        self._spatial_index.insert(
-            self._node_count,
-            (x, y, x, y),
-            obj=node.id
-        )
+        self._spatial_index.insert(self._node_count, (x, y, x, y), obj=node.id)
         self._node_count += 1
 
         return node
@@ -120,13 +116,14 @@ class WallGraph:
             tolerance = self.snap_tolerance
 
         x, y = position
-        candidates = list(self._spatial_index.intersection(
-            (x - tolerance, y - tolerance, x + tolerance, y + tolerance),
-            objects=True
-        ))
+        candidates = list(
+            self._spatial_index.intersection(
+                (x - tolerance, y - tolerance, x + tolerance, y + tolerance), objects=True
+            )
+        )
 
         best_node = None
-        best_dist = float('inf')
+        best_dist = float("inf")
 
         for item in candidates:
             node_id = item.object
