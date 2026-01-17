@@ -4,6 +4,10 @@ import type {
   StylePreset,
   RenderJob,
   RenderStyle,
+  BatchRenderJob,
+  MaterialAssignment,
+  PipelineStatus,
+  Room,
 } from '@/types';
 
 const API_BASE = '/api';
@@ -140,4 +144,91 @@ export async function cancelRenderJob(
 
 export async function getRenderStyles(): Promise<{ styles: RenderStyle[] }> {
   return fetchAPI('/render/styles');
+}
+
+// Render Pipeline API (Batch Rendering)
+export async function getPipelineStatus(): Promise<PipelineStatus> {
+  return fetchAPI('/render/pipeline/status');
+}
+
+export async function startBatchRender(params: {
+  floor_plan_id: string;
+  rooms: Array<{
+    id: string;
+    name: string;
+    room_type?: string;
+    polygon?: [number, number][];
+  }>;
+  material_assignments?: MaterialAssignment[];
+  size?: string;
+  quality?: string;
+  style_preset?: string;
+  lighting?: string;
+  time_of_day?: string;
+  additional_prompt?: string;
+  room_ids?: string[];
+}): Promise<BatchRenderJob> {
+  return fetchAPI<BatchRenderJob>('/render/batch', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+}
+
+export async function getBatchJob(jobId: string): Promise<BatchRenderJob> {
+  return fetchAPI<BatchRenderJob>(`/render/batch/${jobId}`);
+}
+
+export async function cancelBatchJob(
+  jobId: string
+): Promise<{ status: string; id: string }> {
+  return fetchAPI(`/render/batch/${jobId}/cancel`, { method: 'POST' });
+}
+
+export async function listBatchJobs(params?: {
+  floor_plan_id?: string;
+  status?: string;
+  limit?: number;
+}): Promise<{ jobs: BatchRenderJob[]; total: number }> {
+  const searchParams = new URLSearchParams();
+  if (params?.floor_plan_id) searchParams.set('floor_plan_id', params.floor_plan_id);
+  if (params?.status) searchParams.set('status', params.status);
+  if (params?.limit) searchParams.set('limit', params.limit.toString());
+
+  const query = searchParams.toString();
+  return fetchAPI(`/render/batch/jobs/list${query ? `?${query}` : ''}`);
+}
+
+export async function deleteBatchJob(
+  jobId: string
+): Promise<{ status: string; id: string }> {
+  return fetchAPI(`/render/batch/${jobId}`, { method: 'DELETE' });
+}
+
+// Single Room Render
+export async function renderSingleRoom(params: {
+  room_id: string;
+  room_name: string;
+  room_type?: string;
+  area?: number;
+  polygon?: [number, number][];
+  floor_material_id?: string;
+  wall_material_id?: string;
+  ceiling_material_id?: string;
+  size?: string;
+  quality?: string;
+  style_preset?: string;
+  lighting?: string;
+  time_of_day?: string;
+  additional_prompt?: string;
+}): Promise<{
+  room_id: string;
+  room_name: string;
+  image_url: string;
+  revised_prompt: string;
+  created_at: string;
+}> {
+  return fetchAPI('/render/room', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
 }

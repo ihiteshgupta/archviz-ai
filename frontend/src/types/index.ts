@@ -117,3 +117,66 @@ export interface RenderStyle {
   name: string;
   description: string;
 }
+
+// Batch Render Pipeline Types
+export interface BatchRenderJob {
+  id: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  floor_plan_id: string;
+  total_rooms: number;
+  completed_rooms: number;
+  progress: number;
+  successful_renders: number;
+  failed_renders: number;
+  results: BatchRenderResult[];
+  errors: BatchRenderError[];
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface BatchRenderResult {
+  room_id: string;
+  room_name: string;
+  image_url: string;
+  revised_prompt: string;
+  created_at: string;
+  config: RenderConfig;
+}
+
+export interface BatchRenderError {
+  room_id: string;
+  room_name: string;
+  error_type: string;
+  message: string;
+  retryable: boolean;
+}
+
+export interface RenderConfig {
+  size: string;
+  quality: string;
+  style_preset: string;
+  lighting: string;
+  time_of_day: string;
+  additional_prompt: string;
+}
+
+export interface MaterialAssignment {
+  surface_id: string;
+  material_id: string;
+  room_id: string;
+  surface_type: 'floor' | 'wall' | 'ceiling';
+}
+
+export interface RoomMaterials {
+  floor?: string;
+  wall?: string;
+  ceiling?: string;
+}
+
+export interface PipelineStatus {
+  available: boolean;
+  provider: string | null;
+  materials_loaded: number;
+  active_jobs: number;
+  pending_jobs: number;
+}
