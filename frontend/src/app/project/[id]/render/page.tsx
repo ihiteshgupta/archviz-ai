@@ -565,7 +565,14 @@ export default function RenderPage() {
         <div className={`${mobileTab === 'rooms' ? 'flex' : 'hidden'} lg:flex w-full lg:w-80 border-r border-border flex-col bg-white`}>
           {/* Floor Plan Preview */}
           <div className="p-4 border-b border-border">
-            <FloorPlanMiniMap projectId={projectId} />
+            <FloorPlanMiniMap
+              projectId={projectId}
+              selectedRooms={selectedRooms}
+              onRoomClick={(roomId) => {
+                setSelectedRoomId(roomId);
+                toggleRoomSelection(roomId);
+              }}
+            />
           </div>
 
           {/* Room List */}
