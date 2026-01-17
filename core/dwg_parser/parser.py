@@ -17,6 +17,9 @@ from ezdxf.math import Vec2
 
 from .elements import Wall, Door, Window, Room, Dimension, Point2D, DoorSwing, WindowType
 from .converter import convert_dwg_to_dxf, is_dwg_file, is_dxf_file
+from .wall_graph import WallGraph
+from .room_classifier import RoomClassifier, RoomContext
+from .spatial_utils import point_in_polygon, polygon_centroid, polygon_area
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +109,9 @@ class DWGParser:
         window_layers: Optional[List[str]] = None,
         default_wall_height: float = 3.0,
         default_wall_thickness: float = 0.2,
+        snap_tolerance: float = 0.05,
+        auto_detect_rooms: bool = True,
+        openai_service: Optional[Any] = None,
     ):
         """
         Initialize the parser.
@@ -116,12 +122,18 @@ class DWGParser:
             window_layers: Custom layer names to look for windows
             default_wall_height: Default wall height in meters
             default_wall_thickness: Default wall thickness in meters
+            snap_tolerance: Distance within which wall endpoints are merged (meters)
+            auto_detect_rooms: Whether to automatically detect rooms from walls
+            openai_service: Optional Azure OpenAI service for AI room classification
         """
         self.wall_layers = wall_layers or []
         self.door_layers = door_layers or []
         self.window_layers = window_layers or []
         self.default_wall_height = default_wall_height
         self.default_wall_thickness = default_wall_thickness
+        self.snap_tolerance = snap_tolerance
+        self.auto_detect_rooms = auto_detect_rooms
+        self.openai_service = openai_service
 
         self._doc: Optional[Drawing] = None
         self._floor_plan: Optional[FloorPlan] = None
@@ -164,7 +176,13 @@ class DWGParser:
         self._extract_walls()
         self._extract_doors()
         self._extract_windows()
-        self._extract_rooms()
+
+        # Room detection: either from wall geometry or from room layers
+        if self.auto_detect_rooms:
+            self._detect_rooms_from_walls()
+        else:
+            self._extract_rooms()
+
         self._extract_dimensions()
 
         # Calculate bounds
@@ -510,3 +528,176 @@ class DWGParser:
         self._floor_plan.metadata.bounds_min = (min_x, min_y)
         self._floor_plan.metadata.bounds_max = (max_x, max_y)
         self._floor_plan.metadata.total_area = sum(r.area for r in self._floor_plan.rooms)
+
+    def _detect_rooms_from_walls(self) -> None:
+        """Detect rooms by finding enclosed areas in wall geometry."""
+        if self._floor_plan is None:
+            return
+
+        # Build WallGraph from walls
+        graph = WallGraph(snap_tolerance=self.snap_tolerance)
+        graph.add_walls(self._floor_plan.walls)
+
+        # Find cycles (enclosed rooms)
+        cycles = graph.find_cycles(min_area=0.5)
+
+        if not cycles:
+            logger.info("No enclosed rooms detected from walls")
+            return
+
+        # Create classifier
+        classifier = RoomClassifier(openai_service=self.openai_service)
+
+        # Build Room objects from cycles
+        for polygon in cycles:
+            # Build context for classification
+            context = self._build_room_context(polygon)
+
+            # Classify the room
+            classification = classifier.classify(context)
+
+            # Create Room object
+            room = Room(
+                polygon=polygon,
+                room_type=classification.room_type,
+                confidence_low=classification.is_low_confidence,
+            )
+
+            # Try to find a name from nearby text
+            centroid = polygon_centroid(polygon)
+            nearby_texts = self._find_text_near_centroid(centroid, radius=2.0)
+            if nearby_texts:
+                room.name = nearby_texts[0]
+
+            self._floor_plan.rooms.append(room)
+
+        logger.info(f"Detected {len(self._floor_plan.rooms)} rooms from walls")
+
+    def _build_room_context(self, polygon: List[Point2D]) -> RoomContext:
+        """Build classification context for a room polygon.
+
+        Args:
+            polygon: List of (x, y) vertices defining the room boundary
+
+        Returns:
+            RoomContext with area, aspect ratio, door/window counts, fixtures, and text
+        """
+        area = polygon_area(polygon)
+        centroid = polygon_centroid(polygon)
+
+        # Calculate bounding box for aspect ratio
+        min_x = min(p[0] for p in polygon)
+        max_x = max(p[0] for p in polygon)
+        min_y = min(p[1] for p in polygon)
+        max_y = max(p[1] for p in polygon)
+
+        width = max_x - min_x
+        height = max_y - min_y
+        aspect_ratio = width / height if height > 0 else 1.0
+
+        # Count doors inside or on boundary of polygon
+        door_count = 0
+        if self._floor_plan:
+            for door in self._floor_plan.doors:
+                if point_in_polygon(door.position, polygon):
+                    door_count += 1
+
+        # Count windows inside or on boundary of polygon
+        window_count = 0
+        if self._floor_plan:
+            for window in self._floor_plan.windows:
+                if point_in_polygon(window.position, polygon):
+                    window_count += 1
+
+        # Detect fixtures inside polygon
+        fixtures = self._detect_fixtures_in_polygon(polygon)
+
+        # Find nearby text
+        nearby_text = self._find_text_near_centroid(centroid, radius=2.0)
+
+        return RoomContext(
+            polygon=polygon,
+            area=area,
+            aspect_ratio=aspect_ratio,
+            door_count=door_count,
+            window_count=window_count,
+            fixtures=fixtures,
+            nearby_text=nearby_text,
+        )
+
+    def _detect_fixtures_in_polygon(self, polygon: List[Point2D]) -> List[str]:
+        """Detect fixture blocks inside a polygon.
+
+        Args:
+            polygon: List of (x, y) vertices defining the room boundary
+
+        Returns:
+            List of fixture block names found inside the polygon
+        """
+        fixtures: List[str] = []
+
+        if self._doc is None or self._floor_plan is None:
+            return fixtures
+
+        msp = self._doc.modelspace()
+        scale = self._floor_plan.metadata.scale
+
+        for entity in msp:
+            if not isinstance(entity, Insert):
+                continue
+
+            block_name = entity.dxf.name
+            insert_point = entity.dxf.insert
+            position = (insert_point.x * scale, insert_point.y * scale)
+
+            # Check if the block is inside the polygon
+            if point_in_polygon(position, polygon):
+                # Skip doors and windows (already counted)
+                if not self._is_door_block(block_name) and not self._is_window_block(block_name):
+                    fixtures.append(block_name)
+
+        return fixtures
+
+    def _find_text_near_centroid(self, centroid: Point2D, radius: float = 2.0) -> List[str]:
+        """Find text entities near a point.
+
+        Args:
+            centroid: (x, y) coordinates of the search center
+            radius: Search radius in meters
+
+        Returns:
+            List of text content found near the centroid
+        """
+        texts: List[str] = []
+
+        if self._doc is None or self._floor_plan is None:
+            return texts
+
+        msp = self._doc.modelspace()
+        scale = self._floor_plan.metadata.scale
+
+        for entity in msp:
+            if entity.dxftype() in ("TEXT", "MTEXT"):
+                try:
+                    # Get text position
+                    if entity.dxftype() == "TEXT":
+                        insert = entity.dxf.insert
+                        text_content = entity.dxf.text
+                    else:  # MTEXT
+                        insert = entity.dxf.insert
+                        text_content = entity.text
+
+                    position = (insert.x * scale, insert.y * scale)
+
+                    # Calculate distance from centroid
+                    dx = position[0] - centroid[0]
+                    dy = position[1] - centroid[1]
+                    distance = (dx ** 2 + dy ** 2) ** 0.5
+
+                    if distance <= radius and text_content:
+                        texts.append(text_content.strip())
+
+                except Exception as e:
+                    logger.debug(f"Could not extract text from entity: {e}")
+
+        return texts

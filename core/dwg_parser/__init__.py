@@ -7,6 +7,7 @@ extracting architectural elements like walls, doors, windows, and rooms.
 from .parser import DWGParser, FloorPlan
 from .elements import Wall, Door, Window, Room
 from .converter import convert_dwg_to_dxf
+from .wall_graph import WallGraph
 from .room_classifier import (
     RoomClassifier,
     RoomContext,
@@ -23,6 +24,7 @@ __all__ = [
     "Window",
     "Room",
     "convert_dwg_to_dxf",
+    "WallGraph",
     "RoomClassifier",
     "RoomContext",
     "RoomClassification",

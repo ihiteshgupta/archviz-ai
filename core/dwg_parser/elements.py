@@ -134,6 +134,7 @@ class Room:
     floor_level: int = 0
     ceiling_height: float = 3.0
     room_type: str = "generic"  # living, bedroom, kitchen, bathroom, etc.
+    confidence_low: bool = False  # True if room classification has low confidence
 
     @property
     def area(self) -> float:
@@ -180,6 +181,7 @@ class Room:
             "floor_level": self.floor_level,
             "ceiling_height": self.ceiling_height,
             "room_type": self.room_type,
+            "confidence_low": self.confidence_low,
             "area": round(self.area, 2),
             "perimeter": round(self.perimeter, 2),
             "centroid": self.centroid,
