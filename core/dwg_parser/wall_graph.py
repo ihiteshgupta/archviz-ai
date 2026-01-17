@@ -4,6 +4,7 @@ Builds a planar graph from wall segments where nodes are endpoints
 and edges are wall segments. Uses R-tree for efficient spatial queries.
 """
 
+import math
 import uuid
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Tuple
@@ -11,7 +12,7 @@ from typing import Dict, List, Optional, Set, Tuple
 from rtree import index
 
 from .elements import Point2D, Wall
-from .spatial_utils import distance
+from .spatial_utils import distance, polygon_area
 
 
 @dataclass
@@ -153,3 +154,220 @@ class WallGraph:
         elif edge.node_ids[1] == node_id:
             return self.nodes.get(edge.node_ids[0])
         return None
+
+    def find_cycles(self, min_area: float = 0.5) -> List[List[Point2D]]:
+        """Find all minimal cycles (enclosed rooms) in the graph.
+
+        Uses "always turn right" planar traversal algorithm to find
+        minimal cycles representing enclosed room polygons.
+
+        Args:
+            min_area: Minimum area in square meters for a valid room
+
+        Returns:
+            List of cycles, each cycle is a list of vertex positions
+        """
+        if len(self.edges) == 0:
+            return []
+
+        # Track used directed edges: (edge_id, from_node_id)
+        used_directed_edges: Set[Tuple[str, str]] = set()
+        cycles: List[List[Point2D]] = []
+
+        # Try to trace a cycle from each edge in each direction
+        for edge in self.edges.values():
+            for start_node_id in edge.node_ids:
+                directed_key = (edge.id, start_node_id)
+                if directed_key in used_directed_edges:
+                    continue
+
+                cycle = self._trace_cycle(edge, start_node_id, used_directed_edges)
+                if cycle is not None:
+                    cycles.append(cycle)
+
+        # Filter by minimum area
+        filtered_cycles = [c for c in cycles if polygon_area(c) >= min_area]
+
+        # Remove outer boundary if we have multiple cycles
+        if len(filtered_cycles) > 1:
+            filtered_cycles = self._remove_outer_boundary(filtered_cycles)
+
+        return filtered_cycles
+
+    def _trace_cycle(
+        self,
+        start_edge: GraphEdge,
+        start_from_node_id: str,
+        used_directed_edges: Set[Tuple[str, str]],
+    ) -> Optional[List[Point2D]]:
+        """Trace a cycle starting from a directed edge using rightmost turns.
+
+        Args:
+            start_edge: The edge to start from
+            start_from_node_id: The node we're coming from
+            used_directed_edges: Set of already used directed edges
+
+        Returns:
+            List of vertex positions forming the cycle, or None if no cycle found
+        """
+        cycle_nodes: List[str] = []
+        cycle_edges: List[Tuple[str, str]] = []  # (edge_id, from_node_id)
+
+        current_edge = start_edge
+        current_from_node_id = start_from_node_id
+        current_node = self.get_other_node(current_edge, current_from_node_id)
+
+        if current_node is None:
+            return None
+
+        start_node = self.nodes.get(start_from_node_id)
+        if start_node is None:
+            return None
+
+        # Track the starting point
+        target_node_id = start_from_node_id
+        max_iterations = len(self.edges) * 2 + 10
+
+        for _ in range(max_iterations):
+            # Record this directed edge
+            directed_key = (current_edge.id, current_from_node_id)
+            if directed_key in used_directed_edges:
+                # This directed edge was already used in another cycle
+                return None
+
+            cycle_nodes.append(current_node.id)
+            cycle_edges.append(directed_key)
+
+            # Check if we've returned to start
+            if current_node.id == target_node_id and len(cycle_nodes) >= 3:
+                # Found a valid cycle - mark all directed edges as used
+                for edge_key in cycle_edges:
+                    used_directed_edges.add(edge_key)
+
+                # Convert node ids to positions
+                return [self.nodes[nid].position for nid in cycle_nodes]
+
+            # Find the next edge using rightmost turn
+            prev_node = self.nodes.get(current_from_node_id)
+            if prev_node is None:
+                return None
+
+            next_edge = self._find_rightmost_edge(
+                current_node, prev_node, current_edge
+            )
+            if next_edge is None:
+                return None
+
+            # Move to next edge
+            current_from_node_id = current_node.id
+            current_edge = next_edge
+            next_node = self.get_other_node(current_edge, current_node.id)
+            if next_node is None:
+                return None
+            current_node = next_node
+
+        # Exceeded max iterations - no cycle found
+        return None
+
+    def _find_rightmost_edge(
+        self,
+        current_node: GraphNode,
+        prev_node: GraphNode,
+        current_edge: GraphEdge,
+    ) -> Optional[GraphEdge]:
+        """Find the edge representing the rightmost turn from current position.
+
+        Uses angle calculations to determine which outgoing edge represents
+        the rightmost (most clockwise) turn from the incoming direction.
+
+        Args:
+            current_node: The node we're at
+            prev_node: The node we came from
+            current_edge: The edge we arrived on
+
+        Returns:
+            The edge to take for a rightmost turn, or None if dead end
+        """
+        edges = self.get_edges_from_node(current_node.id)
+        if len(edges) == 0:
+            return None
+
+        if len(edges) == 1:
+            # Dead end - only edge is the one we came from
+            return None
+
+        # Calculate incoming direction angle
+        dx_in = current_node.position[0] - prev_node.position[0]
+        dy_in = current_node.position[1] - prev_node.position[1]
+        incoming_angle = math.atan2(dy_in, dx_in)
+
+        best_edge = None
+        best_turn_angle = float("-inf")
+
+        for edge in edges:
+            # Skip the edge we came from
+            if edge.id == current_edge.id:
+                continue
+
+            # Get the other node on this edge
+            other_node = self.get_other_node(edge, current_node.id)
+            if other_node is None:
+                continue
+
+            # Calculate outgoing direction angle
+            dx_out = other_node.position[0] - current_node.position[0]
+            dy_out = other_node.position[1] - current_node.position[1]
+            outgoing_angle = math.atan2(dy_out, dx_out)
+
+            # Calculate turn angle (how much we turn right)
+            # Positive = right turn, negative = left turn
+            # We want the most negative (rightmost) turn
+            turn_angle = outgoing_angle - incoming_angle
+
+            # Normalize to [-pi, pi]
+            while turn_angle > math.pi:
+                turn_angle -= 2 * math.pi
+            while turn_angle < -math.pi:
+                turn_angle += 2 * math.pi
+
+            # For rightmost turn, we want the smallest (most negative) angle
+            # But we negate here to use max comparison
+            right_turn_score = -turn_angle
+
+            if right_turn_score > best_turn_angle:
+                best_turn_angle = right_turn_score
+                best_edge = edge
+
+        return best_edge
+
+    def _remove_outer_boundary(
+        self, cycles: List[List[Point2D]]
+    ) -> List[List[Point2D]]:
+        """Remove the outer boundary cycle when there are interior cycles.
+
+        The outer boundary is identified as the cycle with the largest area.
+
+        Args:
+            cycles: List of cycles
+
+        Returns:
+            Cycles with outer boundary removed
+        """
+        if len(cycles) <= 1:
+            return cycles
+
+        # Find the cycle with the largest area (outer boundary)
+        max_area = 0.0
+        max_index = -1
+
+        for i, cycle in enumerate(cycles):
+            area = polygon_area(cycle)
+            if area > max_area:
+                max_area = area
+                max_index = i
+
+        # Remove the outer boundary
+        if max_index >= 0:
+            return cycles[:max_index] + cycles[max_index + 1:]
+
+        return cycles

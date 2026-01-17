@@ -117,3 +117,97 @@ class TestEdgeConnectivity:
         node_b = graph.get_other_node(edge, node_a.id)
 
         assert node_b.position == (5, 0)
+
+
+class TestCycleDetection:
+    """Tests for finding enclosed room polygons."""
+
+    def test_single_rectangle_room(self):
+        """Four walls forming a rectangle should yield one cycle."""
+        graph = WallGraph()
+        # Create a 5x4 rectangle
+        graph.add_wall(Wall(points=[(0, 0), (5, 0)]))
+        graph.add_wall(Wall(points=[(5, 0), (5, 4)]))
+        graph.add_wall(Wall(points=[(5, 4), (0, 4)]))
+        graph.add_wall(Wall(points=[(0, 4), (0, 0)]))
+
+        cycles = graph.find_cycles()
+
+        assert len(cycles) == 1
+        assert len(cycles[0]) == 4  # 4 vertices
+
+    def test_two_adjacent_rooms(self):
+        """Two rooms sharing a wall should yield two cycles."""
+        graph = WallGraph()
+        # Room 1: 0,0 to 5,4
+        graph.add_wall(Wall(points=[(0, 0), (5, 0)]))
+        graph.add_wall(Wall(points=[(5, 0), (5, 4)]))
+        graph.add_wall(Wall(points=[(5, 4), (0, 4)]))
+        graph.add_wall(Wall(points=[(0, 4), (0, 0)]))
+        # Room 2: 5,0 to 10,4 (shares wall at x=5)
+        graph.add_wall(Wall(points=[(5, 0), (10, 0)]))
+        graph.add_wall(Wall(points=[(10, 0), (10, 4)]))
+        graph.add_wall(Wall(points=[(10, 4), (5, 4)]))
+
+        cycles = graph.find_cycles()
+
+        assert len(cycles) == 2
+
+    def test_no_cycles_from_open_walls(self):
+        """Walls that don't form a closed shape should yield no cycles."""
+        graph = WallGraph()
+        graph.add_wall(Wall(points=[(0, 0), (5, 0)]))
+        graph.add_wall(Wall(points=[(5, 0), (5, 4)]))
+        graph.add_wall(Wall(points=[(5, 4), (0, 4)]))
+        # Missing the closing wall
+
+        cycles = graph.find_cycles()
+
+        assert len(cycles) == 0
+
+    def test_l_shaped_room(self):
+        """L-shaped room should yield one cycle."""
+        graph = WallGraph()
+        # L-shape vertices: (0,0), (4,0), (4,2), (2,2), (2,4), (0,4)
+        points = [(0, 0), (4, 0), (4, 2), (2, 2), (2, 4), (0, 4), (0, 0)]
+        for i in range(len(points) - 1):
+            graph.add_wall(Wall(points=[points[i], points[i + 1]]))
+
+        cycles = graph.find_cycles()
+
+        assert len(cycles) == 1
+        assert len(cycles[0]) == 6
+
+    def test_room_with_internal_wall(self):
+        """Room with internal dividing wall should yield two cycles."""
+        graph = WallGraph()
+        # Outer rectangle 10x4 with walls split at x=5 for internal wall connection
+        # Bottom wall split into two segments
+        graph.add_wall(Wall(points=[(0, 0), (5, 0)]))
+        graph.add_wall(Wall(points=[(5, 0), (10, 0)]))
+        # Right wall
+        graph.add_wall(Wall(points=[(10, 0), (10, 4)]))
+        # Top wall split into two segments
+        graph.add_wall(Wall(points=[(10, 4), (5, 4)]))
+        graph.add_wall(Wall(points=[(5, 4), (0, 4)]))
+        # Left wall
+        graph.add_wall(Wall(points=[(0, 4), (0, 0)]))
+        # Internal wall dividing at x=5
+        graph.add_wall(Wall(points=[(5, 0), (5, 4)]))
+
+        cycles = graph.find_cycles()
+
+        assert len(cycles) == 2
+
+    def test_filters_tiny_cycles(self):
+        """Cycles smaller than min_area should be filtered."""
+        graph = WallGraph()
+        # Tiny 0.1x0.1 room (0.01 m²)
+        graph.add_wall(Wall(points=[(0, 0), (0.1, 0)]))
+        graph.add_wall(Wall(points=[(0.1, 0), (0.1, 0.1)]))
+        graph.add_wall(Wall(points=[(0.1, 0.1), (0, 0.1)]))
+        graph.add_wall(Wall(points=[(0, 0.1), (0, 0)]))
+
+        cycles = graph.find_cycles(min_area=0.5)
+
+        assert len(cycles) == 0
