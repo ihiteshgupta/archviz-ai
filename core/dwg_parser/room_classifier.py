@@ -9,9 +9,8 @@ This module provides intelligent room type classification based on:
 import asyncio
 import json
 import logging
-import re
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple, Any
+from typing import Any, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -22,30 +21,66 @@ Point2D = Tuple[float, float]
 # Fixture patterns for detecting room types from block names
 FIXTURE_PATTERNS: dict[str, list[str]] = {
     "bathroom": [
-        "toilet", "wc", "sink", "basin", "shower", "tub", "bath",
-        "bidet", "vanity", "lavatory",
+        "toilet",
+        "wc",
+        "sink",
+        "basin",
+        "shower",
+        "tub",
+        "bath",
+        "bidet",
+        "vanity",
+        "lavatory",
     ],
     "kitchen": [
-        "stove", "oven", "fridge", "refrigerator", "sink", "dishwasher",
-        "range", "cooktop", "microwave", "counter",
+        "stove",
+        "oven",
+        "fridge",
+        "refrigerator",
+        "sink",
+        "dishwasher",
+        "range",
+        "cooktop",
+        "microwave",
+        "counter",
     ],
     "laundry": [
-        "washer", "dryer", "washing", "laundry", "iron",
+        "washer",
+        "dryer",
+        "washing",
+        "laundry",
+        "iron",
     ],
     "bedroom": [
-        "bed", "mattress", "wardrobe", "closet", "nightstand",
+        "bed",
+        "mattress",
+        "wardrobe",
+        "closet",
+        "nightstand",
     ],
     "living_room": [
-        "sofa", "couch", "tv", "television", "fireplace", "coffee_table",
+        "sofa",
+        "couch",
+        "tv",
+        "television",
+        "fireplace",
+        "coffee_table",
     ],
     "dining_room": [
-        "dining", "table", "chairs",
+        "dining",
+        "table",
+        "chairs",
     ],
     "office": [
-        "desk", "computer", "bookshelf", "filing",
+        "desk",
+        "computer",
+        "bookshelf",
+        "filing",
     ],
     "garage": [
-        "car", "vehicle", "garage_door",
+        "car",
+        "vehicle",
+        "garage_door",
     ],
 }
 
@@ -53,81 +88,135 @@ FIXTURE_PATTERNS: dict[str, list[str]] = {
 # Text patterns for detecting room types from labels
 TEXT_PATTERNS: dict[str, list[str]] = {
     "living_room": [
-        "living", "lounge", "family room", "great room", "sitting",
+        "living",
+        "lounge",
+        "family room",
+        "great room",
+        "sitting",
     ],
     "bedroom": [
-        "bedroom", "bed room", "master bed", "guest room", "sleeping",
+        "bedroom",
+        "bed room",
+        "master bed",
+        "guest room",
+        "sleeping",
     ],
     "bathroom": [
-        "bathroom", "bath room", "restroom", "toilet", "wc", "lavatory",
-        "powder room", "half bath", "full bath",
+        "bathroom",
+        "bath room",
+        "restroom",
+        "toilet",
+        "wc",
+        "lavatory",
+        "powder room",
+        "half bath",
+        "full bath",
     ],
     "kitchen": [
-        "kitchen", "kitchenette", "cook",
+        "kitchen",
+        "kitchenette",
+        "cook",
     ],
     "hallway": [
-        "hallway", "hall", "corridor", "passage", "entry", "foyer",
+        "hallway",
+        "hall",
+        "corridor",
+        "passage",
+        "entry",
+        "foyer",
     ],
     "closet": [
-        "closet", "wardrobe", "storage", "pantry",
+        "closet",
+        "wardrobe",
+        "storage",
+        "pantry",
     ],
     "garage": [
-        "garage", "carport", "parking",
+        "garage",
+        "carport",
+        "parking",
     ],
     "dining_room": [
-        "dining", "breakfast", "eat-in",
+        "dining",
+        "breakfast",
+        "eat-in",
     ],
     "office": [
-        "office", "study", "den", "library", "work room",
+        "office",
+        "study",
+        "den",
+        "library",
+        "work room",
     ],
     "laundry": [
-        "laundry", "utility", "mud room",
+        "laundry",
+        "utility",
+        "mud room",
     ],
     "pantry": [
-        "pantry", "larder",
+        "pantry",
+        "larder",
     ],
     "balcony": [
-        "balcony", "terrace", "patio", "deck", "porch",
+        "balcony",
+        "terrace",
+        "patio",
+        "deck",
+        "porch",
     ],
     "conference_room": [
-        "conference", "meeting", "board room",
+        "conference",
+        "meeting",
+        "board room",
     ],
     "reception": [
-        "reception", "lobby", "waiting",
+        "reception",
+        "lobby",
+        "waiting",
     ],
     "lobby": [
-        "lobby", "entrance", "vestibule",
+        "lobby",
+        "entrance",
+        "vestibule",
     ],
     "storage": [
-        "storage", "store", "attic", "basement",
+        "storage",
+        "store",
+        "attic",
+        "basement",
     ],
     "utility": [
-        "utility", "mechanical", "hvac", "electrical",
+        "utility",
+        "mechanical",
+        "hvac",
+        "electrical",
     ],
 }
 
 
 # All recognized room types
-ROOM_TYPES: frozenset[str] = frozenset([
-    "living_room",
-    "bedroom",
-    "bathroom",
-    "kitchen",
-    "hallway",
-    "closet",
-    "garage",
-    "dining_room",
-    "office",
-    "laundry",
-    "pantry",
-    "balcony",
-    "conference_room",
-    "reception",
-    "lobby",
-    "storage",
-    "utility",
-    "unknown",
-])
+ROOM_TYPES: frozenset[str] = frozenset(
+    [
+        "living_room",
+        "bedroom",
+        "bathroom",
+        "kitchen",
+        "hallway",
+        "closet",
+        "garage",
+        "dining_room",
+        "office",
+        "laundry",
+        "pantry",
+        "balcony",
+        "conference_room",
+        "reception",
+        "lobby",
+        "storage",
+        "utility",
+        "unknown",
+    ]
+)
 
 
 @dataclass
@@ -236,9 +325,7 @@ class RoomClassifier:
             reasoning="No fixtures, text labels, or AI classification available",
         )
 
-    def classify_batch(
-        self, contexts: List[RoomContext]
-    ) -> List[RoomClassification]:
+    def classify_batch(self, contexts: List[RoomContext]) -> List[RoomClassification]:
         """Classify multiple rooms.
 
         Args:
@@ -249,9 +336,7 @@ class RoomClassifier:
         """
         return [self.classify(context) for context in contexts]
 
-    def _infer_from_fixtures(
-        self, context: RoomContext
-    ) -> Optional[Tuple[str, float]]:
+    def _infer_from_fixtures(self, context: RoomContext) -> Optional[Tuple[str, float]]:
         """Infer room type from fixture names.
 
         Args:
@@ -292,9 +377,7 @@ class RoomClassifier:
 
         return (best_room, confidence)
 
-    def _infer_from_text(
-        self, context: RoomContext
-    ) -> Optional[Tuple[str, float]]:
+    def _infer_from_text(self, context: RoomContext) -> Optional[Tuple[str, float]]:
         """Infer room type from nearby text labels.
 
         Args:
@@ -316,9 +399,7 @@ class RoomClassifier:
                     if pattern in text_lower:
                         # More specific patterns get higher scores
                         score = len(pattern) / 10.0  # Longer patterns = more specific
-                        room_scores[room_type] = max(
-                            room_scores.get(room_type, 0), score
-                        )
+                        room_scores[room_type] = max(room_scores.get(room_type, 0), score)
 
         if not room_scores:
             return None
@@ -332,9 +413,7 @@ class RoomClassifier:
 
         return (best_room, confidence)
 
-    def _classify_with_ai(
-        self, context: RoomContext
-    ) -> Optional[RoomClassification]:
+    def _classify_with_ai(self, context: RoomContext) -> Optional[RoomClassification]:
         """Classify room using GPT-4 AI.
 
         Args:
@@ -352,22 +431,17 @@ class RoomClassifier:
             if loop.is_running():
                 # If we're already in an async context, create a new task
                 import concurrent.futures
+
                 with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(
-                        asyncio.run, self._async_classify_with_ai(context)
-                    )
+                    future = executor.submit(asyncio.run, self._async_classify_with_ai(context))
                     return future.result(timeout=30)
             else:
-                return loop.run_until_complete(
-                    self._async_classify_with_ai(context)
-                )
+                return loop.run_until_complete(self._async_classify_with_ai(context))
         except Exception as e:
             logger.warning(f"AI classification failed: {e}")
             return None
 
-    async def _async_classify_with_ai(
-        self, context: RoomContext
-    ) -> Optional[RoomClassification]:
+    async def _async_classify_with_ai(self, context: RoomContext) -> Optional[RoomClassification]:
         """Async implementation of AI classification.
 
         Args:
