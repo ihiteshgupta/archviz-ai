@@ -1,0 +1,73 @@
+{
+  "name": "archviz-ai-desktop",
+  "version": "0.1.0",
+  "description": "ArchViz AI Desktop - AI-Powered Architectural Visualization",
+  "main": "dist/main.js",
+  "author": "ArchViz AI",
+  "license": "MIT",
+  "scripts": {
+    "dev": "tsc && electron .",
+    "build": "tsc",
+    "start": "electron .",
+    "package": "electron-builder",
+    "package:mac": "electron-builder --mac",
+    "package:win": "electron-builder --win",
+    "package:linux": "electron-builder --linux"
+  },
+  "dependencies": {
+    "electron-store": "^8.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "electron": "^28.2.0",
+    "electron-builder": "^24.9.1",
+    "typescript": "^5.3.3"
+  },
+  "build": {
+    "appId": "com.archviz-ai.desktop",
+    "productName": "ArchViz AI",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "resources/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.graphics-design",
+      "icon": "resources/icon.icns",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        }
+      ]
+    },
+    "win": {
+      "icon": "resources/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "linux": {
+      "icon": "resources/icons",
+      "target": ["AppImage", "deb"],
+      "category": "Graphics"
+    },
+    "extraResources": [
+      {
+        "from": "../api",
+        "to": "api",
+        "filter": ["**/*", "!**/__pycache__/**", "!**/*.pyc"]
+      },
+      {
+        "from": "../core",
+        "to": "core",
+        "filter": ["**/*", "!**/__pycache__/**", "!**/*.pyc"]
+      }
+    ]
+  }
+}
