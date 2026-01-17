@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import JSZip from 'jszip';
 import {
   ArrowLeft,
   Grid,
@@ -19,6 +20,7 @@ import {
   ZoomIn,
   Layers,
   Image as ImageIcon,
+  Loader2,
 } from 'lucide-react';
 import { useProject, useBatchJobs } from '@/lib/hooks';
 import { cleanRoomName, formatArea } from '@/lib/utils';
@@ -31,6 +33,7 @@ import {
   Modal,
   ModalFooter,
   Skeleton,
+  ProgressBar,
 } from '@/components';
 import type { BatchRenderResult, BatchRenderJob } from '@/types';
 
@@ -74,6 +77,9 @@ export default function GalleryPage() {
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [showShareModal, setShowShareModal] = useState(false);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState<{ current: number; total: number } | null>(null);
+  const [downloadFormat, setDownloadFormat] = useState<'png' | 'jpg'>('png');
+  const [downloadFavoritesOnly, setDownloadFavoritesOnly] = useState(false);
 
   // Flatten all renders from batch jobs
   const allRenders = useMemo(() => {
@@ -194,6 +200,71 @@ export default function GalleryPage() {
       console.error('Download failed:', err);
     }
   };
+
+  // Batch download as ZIP
+  const handleBatchDownload = useCallback(async () => {
+    // Determine which renders to download
+    let rendersToDownload = filteredRenders;
+
+    if (selectedRenders.size > 0) {
+      rendersToDownload = filteredRenders.filter((r) =>
+        selectedRenders.has(`${r.jobId}-${r.room_id}`)
+      );
+    }
+
+    if (downloadFavoritesOnly) {
+      rendersToDownload = rendersToDownload.filter((r) =>
+        favorites.has(`${r.jobId}-${r.room_id}`)
+      );
+    }
+
+    if (rendersToDownload.length === 0) {
+      alert('No renders to download');
+      return;
+    }
+
+    setDownloadProgress({ current: 0, total: rendersToDownload.length });
+    setShowDownloadModal(false);
+
+    const zip = new JSZip();
+
+    for (let i = 0; i < rendersToDownload.length; i++) {
+      const render = rendersToDownload[i];
+      try {
+        const response = await fetch(render.image_url);
+        const blob = await response.blob();
+
+        // Generate filename: RoomName_Style_Date.ext
+        const roomName = cleanRoomName(render.room_name).replace(/[^a-zA-Z0-9]/g, '_');
+        const style = render.config.style_preset;
+        const date = new Date(render.created_at).toISOString().split('T')[0];
+        const ext = downloadFormat;
+        const filename = `${roomName}_${style}_${date}.${ext}`;
+
+        zip.file(filename, blob);
+        setDownloadProgress({ current: i + 1, total: rendersToDownload.length });
+      } catch (err) {
+        console.error(`Failed to fetch ${render.room_name}:`, err);
+      }
+    }
+
+    // Generate and download ZIP
+    try {
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const downloadUrl = window.URL.createObjectURL(zipBlob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `${project?.name || 'renders'}_gallery.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (err) {
+      console.error('ZIP generation failed:', err);
+    }
+
+    setDownloadProgress(null);
+  }, [filteredRenders, selectedRenders, favorites, downloadFavoritesOnly, downloadFormat, project?.name]);
 
   const loading = projectLoading || jobsLoading;
 
@@ -473,21 +544,22 @@ export default function GalleryPage() {
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-600">Format:</span>
-              <select className="select text-sm">
+              <select
+                value={downloadFormat}
+                onChange={(e) => setDownloadFormat(e.target.value as 'png' | 'jpg')}
+                className="select text-sm"
+              >
                 <option value="png">PNG</option>
                 <option value="jpg">JPG (smaller file)</option>
-                <option value="both">Both PNG & JPG</option>
-              </select>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Resolution:</span>
-              <select className="select text-sm">
-                <option value="original">Original</option>
-                <option value="4k">4K Upscaled</option>
               </select>
             </div>
             <label className="flex items-center gap-2">
-              <input type="checkbox" className="rounded" />
+              <input
+                type="checkbox"
+                className="rounded"
+                checked={downloadFavoritesOnly}
+                onChange={(e) => setDownloadFavoritesOnly(e.target.checked)}
+              />
               <span className="text-sm">Include only favorites</span>
             </label>
           </div>
@@ -496,11 +568,28 @@ export default function GalleryPage() {
           <Button variant="secondary" onClick={() => setShowDownloadModal(false)}>
             Cancel
           </Button>
-          <Button variant="primary" icon={<Download size={16} />}>
+          <Button variant="primary" icon={<Download size={16} />} onClick={handleBatchDownload}>
             Download ZIP
           </Button>
         </ModalFooter>
       </Modal>
+
+      {/* Download Progress Overlay */}
+      {downloadProgress && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
+          <Card className="w-80 p-6 text-center">
+            <Loader2 className="w-8 h-8 text-primary-600 animate-spin mx-auto mb-4" />
+            <h3 className="font-semibold text-gray-900 mb-2">Preparing download...</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              {downloadProgress.current} of {downloadProgress.total} images
+            </p>
+            <ProgressBar
+              value={(downloadProgress.current / downloadProgress.total) * 100}
+              size="md"
+            />
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
