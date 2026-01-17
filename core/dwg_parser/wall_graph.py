@@ -252,9 +252,7 @@ class WallGraph:
             if prev_node is None:
                 return None
 
-            next_edge = self._find_rightmost_edge(
-                current_node, prev_node, current_edge
-            )
+            next_edge = self._find_rightmost_edge(current_node, prev_node, current_edge)
             if next_edge is None:
                 return None
 
@@ -340,9 +338,7 @@ class WallGraph:
 
         return best_edge
 
-    def _remove_outer_boundary(
-        self, cycles: List[List[Point2D]]
-    ) -> List[List[Point2D]]:
+    def _remove_outer_boundary(self, cycles: List[List[Point2D]]) -> List[List[Point2D]]:
         """Remove the outer boundary cycle when there are interior cycles.
 
         The outer boundary is identified as the cycle with the largest area.
@@ -368,6 +364,6 @@ class WallGraph:
 
         # Remove the outer boundary
         if max_index >= 0:
-            return cycles[:max_index] + cycles[max_index + 1:]
+            return cycles[:max_index] + cycles[max_index + 1 :]
 
         return cycles
