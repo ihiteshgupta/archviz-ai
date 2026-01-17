@@ -65,6 +65,7 @@ export default function RenderPage() {
   const [phase, setPhase] = useState<RenderPhase>('configure');
   const [error, setError] = useState<string | null>(null);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  const [mobileTab, setMobileTab] = useState<'rooms' | 'style' | 'queue'>('rooms');
 
   // Render settings
   const [selectedStyle, setSelectedStyle] = useState('modern');
@@ -558,10 +559,10 @@ export default function RenderPage() {
         </div>
       )}
 
-      {/* Three Panel Layout */}
-      <div className="flex h-[calc(100vh-65px)]">
-        {/* Left Panel - Floor Plan & Room List */}
-        <div className="w-80 border-r border-border flex flex-col bg-white">
+      {/* Three Panel Layout - Responsive */}
+      <div className="flex flex-col lg:flex-row h-[calc(100vh-65px-56px)] lg:h-[calc(100vh-65px)]">
+        {/* Left Panel - Floor Plan & Room List (hidden on mobile unless rooms tab) */}
+        <div className={`${mobileTab === 'rooms' ? 'flex' : 'hidden'} lg:flex w-full lg:w-80 border-r border-border flex-col bg-white`}>
           {/* Floor Plan Preview */}
           <div className="p-4 border-b border-border">
             <FloorPlanMiniMap projectId={projectId} />
@@ -636,8 +637,8 @@ export default function RenderPage() {
           </div>
         </div>
 
-        {/* Center Panel - Room Configurator */}
-        <div className="flex-1 overflow-y-auto p-6">
+        {/* Center Panel - Room Configurator (hidden on mobile unless style tab) */}
+        <div className={`${mobileTab === 'style' ? 'flex' : 'hidden'} lg:flex flex-1 overflow-y-auto p-4 lg:p-6 flex-col`}>
           {selectedRoom ? (
             <div className="max-w-2xl mx-auto space-y-6">
               {/* Room Header */}
@@ -786,8 +787,8 @@ export default function RenderPage() {
           )}
         </div>
 
-        {/* Right Panel - Settings & Queue */}
-        <div className="w-80 border-l border-border bg-white overflow-y-auto">
+        {/* Right Panel - Settings & Queue (hidden on mobile unless queue tab) */}
+        <div className={`${mobileTab === 'queue' ? 'flex' : 'hidden'} lg:flex w-full lg:w-80 border-l border-border bg-white overflow-y-auto flex-col`}>
           <div className="p-4 space-y-6">
             {/* Lighting Settings */}
             <div>
@@ -922,6 +923,42 @@ export default function RenderPage() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Mobile Bottom Tab Bar */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-border flex z-30">
+        <button
+          onClick={() => setMobileTab('rooms')}
+          className={`flex-1 py-3 flex flex-col items-center gap-1 ${
+            mobileTab === 'rooms' ? 'text-primary-600 bg-primary-50' : 'text-gray-500'
+          }`}
+        >
+          <Layers className="w-5 h-5" />
+          <span className="text-xs font-medium">Rooms</span>
+        </button>
+        <button
+          onClick={() => setMobileTab('style')}
+          className={`flex-1 py-3 flex flex-col items-center gap-1 ${
+            mobileTab === 'style' ? 'text-primary-600 bg-primary-50' : 'text-gray-500'
+          }`}
+        >
+          <Palette className="w-5 h-5" />
+          <span className="text-xs font-medium">Style</span>
+        </button>
+        <button
+          onClick={() => setMobileTab('queue')}
+          className={`flex-1 py-3 flex flex-col items-center gap-1 relative ${
+            mobileTab === 'queue' ? 'text-primary-600 bg-primary-50' : 'text-gray-500'
+          }`}
+        >
+          <Clock className="w-5 h-5" />
+          <span className="text-xs font-medium">Queue</span>
+          {selectedRooms.size > 0 && (
+            <span className="absolute top-1 right-1/4 w-5 h-5 bg-primary-500 text-white text-xs rounded-full flex items-center justify-center">
+              {selectedRooms.size}
+            </span>
+          )}
+        </button>
       </div>
     </div>
   );
