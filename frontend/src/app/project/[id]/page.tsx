@@ -340,6 +340,15 @@ export default function ProjectPage() {
                 >
                   Open Render Studio
                 </Button>
+                <Button
+                  variant="secondary"
+                  icon={<Grid3X3 className="w-4 h-4" />}
+                  disabled={!canRender}
+                  onClick={() => canRender && (window.location.href = `/project/${project.id}/gallery`)}
+                  className="w-full justify-start"
+                >
+                  View Gallery
+                </Button>
               </div>
             </Card>
           </div>

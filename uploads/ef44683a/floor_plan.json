@@ -1,0 +1,199 @@
+{
+  "metadata": {
+    "filename": "sample_floor_plan.dxf",
+    "units": "millimeters",
+    "scale": 0.001,
+    "bounds": {
+      "min": [
+        0.0,
+        0.0
+      ],
+      "max": [
+        10.0,
+        8.0
+      ]
+    },
+    "total_area": 80.0,
+    "floor_count": 1
+  },
+  "walls": [
+    {
+      "id": "f8981962",
+      "points": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          10.0,
+          0.0
+        ]
+      ],
+      "thickness": 0.2,
+      "height": 3.0,
+      "layer": "WALLS",
+      "is_exterior": false,
+      "length": 10.0
+    },
+    {
+      "id": "3281a6ad",
+      "points": [
+        [
+          10.0,
+          0.0
+        ],
+        [
+          10.0,
+          8.0
+        ]
+      ],
+      "thickness": 0.2,
+      "height": 3.0,
+      "layer": "WALLS",
+      "is_exterior": false,
+      "length": 8.0
+    },
+    {
+      "id": "74203d7c",
+      "points": [
+        [
+          10.0,
+          8.0
+        ],
+        [
+          0.0,
+          8.0
+        ]
+      ],
+      "thickness": 0.2,
+      "height": 3.0,
+      "layer": "WALLS",
+      "is_exterior": false,
+      "length": 10.0
+    },
+    {
+      "id": "87fb4983",
+      "points": [
+        [
+          0.0,
+          8.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "thickness": 0.2,
+      "height": 3.0,
+      "layer": "WALLS",
+      "is_exterior": false,
+      "length": 8.0
+    },
+    {
+      "id": "01b8b35e",
+      "points": [
+        [
+          5.0,
+          0.0
+        ],
+        [
+          5.0,
+          8.0
+        ]
+      ],
+      "thickness": 0.2,
+      "height": 3.0,
+      "layer": "WALLS",
+      "is_exterior": false,
+      "length": 8.0
+    }
+  ],
+  "doors": [
+    {
+      "id": "378d0d77",
+      "position": [
+        5.0,
+        3.5
+      ],
+      "width": 0.9,
+      "height": 2.1,
+      "swing": "left",
+      "angle": 0,
+      "wall_id": null,
+      "layer": "DOORS"
+    }
+  ],
+  "windows": [
+    {
+      "id": "76727d40",
+      "position": [
+        2.5,
+        0.0
+      ],
+      "width": 1.2,
+      "height": 1.5,
+      "sill_height": 0.9,
+      "window_type": "single",
+      "angle": 0,
+      "wall_id": null,
+      "layer": "WINDOWS"
+    },
+    {
+      "id": "6486232c",
+      "position": [
+        7.5,
+        8.0
+      ],
+      "width": 1.2,
+      "height": 1.5,
+      "sill_height": 0.9,
+      "window_type": "single",
+      "angle": 0,
+      "wall_id": null,
+      "layer": "WINDOWS"
+    }
+  ],
+  "rooms": [
+    {
+      "id": "9a128fc1",
+      "name": "",
+      "polygon": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          8.0
+        ],
+        [
+          10.0,
+          8.0
+        ],
+        [
+          10.0,
+          0.0
+        ]
+      ],
+      "floor_level": 0,
+      "ceiling_height": 3.0,
+      "room_type": "unknown",
+      "confidence_low": true,
+      "area": 80.0,
+      "perimeter": 36.0,
+      "centroid": [
+        5.0,
+        4.0
+      ]
+    }
+  ],
+  "dimensions": [],
+  "summary": {
+    "wall_count": 5,
+    "door_count": 1,
+    "window_count": 2,
+    "room_count": 1,
+    "total_wall_length": 44.0,
+    "total_room_area": 80.0
+  }
+}
