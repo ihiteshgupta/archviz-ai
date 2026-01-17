@@ -1,57 +1,29 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { ArrowLeft, Upload, Zap, Box, Layers, Cuboid } from 'lucide-react';
-import { getProject, uploadFile } from '@/lib/api';
+import { useProject, useUploadFile } from '@/lib/hooks';
 import { FileUpload, FloorPlanViewer, FloorPlan3DViewer } from '@/components';
 import { formatDate, formatArea } from '@/lib/utils';
-import type { Project } from '@/types';
 
 export default function ProjectPage() {
   const params = useParams();
   const projectId = params.id as string;
 
-  const [project, setProject] = useState<Project | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // React Query hooks
+  const { data: project, isLoading: loading, error: queryError } = useProject(projectId);
+  const uploadFileMutation = useUploadFile(projectId);
+
   const [showUpload, setShowUpload] = useState(false);
   const [activeTab, setActiveTab] = useState<'preview' | '3d' | 'details'>('preview');
 
-  useEffect(() => {
-    async function loadProject() {
-      try {
-        setLoading(true);
-        const data = await getProject(projectId);
-        setProject(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load project');
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadProject();
-  }, [projectId]);
-
   const handleUpload = async (file: File) => {
-    try {
-      const result = await uploadFile(projectId, file);
-      setProject((prev) =>
-        prev
-          ? {
-              ...prev,
-              status: 'parsed',
-              file_name: result.file_name,
-              floor_plan: result.floor_plan,
-            }
-          : null
-      );
-      setShowUpload(false);
-    } catch (err) {
-      throw err;
-    }
+    await uploadFileMutation.mutateAsync(file);
+    setShowUpload(false);
   };
+
+  const error = queryError instanceof Error ? queryError.message : null;
 
   if (loading) {
     return (

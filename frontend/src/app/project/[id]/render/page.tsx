@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import {
   ArrowLeft,
@@ -21,26 +21,20 @@ import {
   CheckSquare,
 } from 'lucide-react';
 import {
-  getProject,
-  getRenderStyles,
-  getStylePresets,
-  getMaterialLibrary,
-  getPipelineStatus,
-  startBatchRender,
-  getBatchJob,
-  cancelBatchJob,
-} from '@/lib/api';
+  useProject,
+  useRenderStyles,
+  useStylePresets,
+  useMaterials,
+  usePipelineStatus,
+  useBatchJob,
+  useStartBatchRender,
+  useCancelBatchJob,
+} from '@/lib/hooks';
 import { cleanRoomName, getShortRoomLabel } from '@/lib/utils';
 import FloorPlanMiniMap from '@/components/FloorPlanMiniMap';
 import type {
-  Project,
-  RenderStyle,
-  StylePreset,
-  Material,
-  BatchRenderJob,
   MaterialAssignment,
   RoomMaterials,
-  PipelineStatus,
 } from '@/types';
 
 type RenderPhase = 'configure' | 'rendering' | 'results';
@@ -49,17 +43,16 @@ export default function RenderPage() {
   const params = useParams();
   const projectId = params.id as string;
 
-  // Data states
-  const [project, setProject] = useState<Project | null>(null);
-  const [styles, setStyles] = useState<RenderStyle[]>([]);
-  const [presets, setPresets] = useState<StylePreset[]>([]);
-  const [materials, setMaterials] = useState<Material[]>([]);
-  const [pipelineStatus, setPipelineStatus] = useState<PipelineStatus | null>(null);
+  // React Query hooks for data fetching (cached + deduplicated)
+  const { data: project, isLoading: projectLoading, error: projectError } = useProject(projectId);
+  const { data: stylesData } = useRenderStyles();
+  const { data: presetsData } = useStylePresets();
+  const { data: materialsData } = useMaterials();
+  const { data: pipelineStatus } = usePipelineStatus();
 
   // UI states
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<RenderPhase>('configure');
+  const [error, setError] = useState<string | null>(null);
 
   // Render settings
   const [selectedStyle, setSelectedStyle] = useState('modern');
@@ -73,81 +66,45 @@ export default function RenderPage() {
   // Room selection for rendering
   const [selectedRooms, setSelectedRooms] = useState<Set<string>>(new Set());
 
-  // Batch job tracking
-  const [currentJob, setCurrentJob] = useState<BatchRenderJob | null>(null);
-  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
+  // Batch job tracking with automatic polling
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
+  const isJobRunning = phase === 'rendering';
+  const { data: currentJob } = useBatchJob(currentJobId, { polling: isJobRunning });
 
-  // Load initial data
+  // Mutations
+  const startBatchRenderMutation = useStartBatchRender();
+  const cancelBatchJobMutation = useCancelBatchJob();
+
+  // Extract data from queries
+  const styles = stylesData?.styles ?? [];
+  const presets = presetsData?.presets ?? [];
+  const materials = materialsData?.materials ?? [];
+  const loading = projectLoading;
+
+  // Initialize room materials when project loads
   useEffect(() => {
-    async function loadData() {
-      try {
-        setLoading(true);
-        const [projectData, stylesData, presetsData, materialsData, statusData] =
-          await Promise.all([
-            getProject(projectId),
-            getRenderStyles(),
-            getStylePresets(),
-            getMaterialLibrary(),
-            getPipelineStatus().catch(() => null),
-          ]);
-
-        setProject(projectData);
-        setStyles(stylesData.styles);
-        setPresets(presetsData.presets);
-        setMaterials(materialsData.materials);
-        setPipelineStatus(statusData);
-
-        // Initialize room materials with defaults and select all rooms
-        if (projectData.floor_plan?.rooms) {
-          const initialMaterials: Record<string, RoomMaterials> = {};
-          const allRoomIds = new Set<string>();
-          projectData.floor_plan.rooms.forEach((room) => {
-            initialMaterials[room.id] = {
-              floor: 'white_oak_light',
-              wall: 'white_matte',
-              ceiling: 'white_matte',
-            };
-            allRoomIds.add(room.id);
-          });
-          setRoomMaterials(initialMaterials);
-          setSelectedRooms(allRoomIds);
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load data');
-      } finally {
-        setLoading(false);
-      }
+    if (project?.floor_plan?.rooms && Object.keys(roomMaterials).length === 0) {
+      const initialMaterials: Record<string, RoomMaterials> = {};
+      const allRoomIds = new Set<string>();
+      project.floor_plan.rooms.forEach((room) => {
+        initialMaterials[room.id] = {
+          floor: 'white_oak_light',
+          wall: 'white_matte',
+          ceiling: 'white_matte',
+        };
+        allRoomIds.add(room.id);
+      });
+      setRoomMaterials(initialMaterials);
+      setSelectedRooms(allRoomIds);
     }
+  }, [project, roomMaterials]);
 
-    loadData();
-  }, [projectId]);
-
-  // Cleanup polling on unmount
+  // Transition to results when job completes
   useEffect(() => {
-    return () => {
-      if (pollingInterval) {
-        clearInterval(pollingInterval);
-      }
-    };
-  }, [pollingInterval]);
-
-  // Poll for job status
-  const pollJobStatus = useCallback(async (jobId: string) => {
-    try {
-      const job = await getBatchJob(jobId);
-      setCurrentJob(job);
-
-      if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
-        if (pollingInterval) {
-          clearInterval(pollingInterval);
-          setPollingInterval(null);
-        }
-        setPhase('results');
-      }
-    } catch (err) {
-      console.error('Failed to poll job status:', err);
+    if (currentJob && (currentJob.status === 'completed' || currentJob.status === 'failed' || currentJob.status === 'cancelled')) {
+      setPhase('results');
     }
-  }, [pollingInterval]);
+  }, [currentJob]);
 
   const handleStartRender = async () => {
     if (!project?.floor_plan?.rooms || selectedRooms.size === 0) return;
@@ -191,8 +148,8 @@ export default function RenderPage() {
         }
       });
 
-      // Start batch render with only selected rooms
-      const job = await startBatchRender({
+      // Start batch render with mutation (cached + error handling)
+      const job = await startBatchRenderMutation.mutateAsync({
         floor_plan_id: project.id,
         rooms: roomsToRender.map((room) => ({
           id: room.id,
@@ -209,11 +166,8 @@ export default function RenderPage() {
         additional_prompt: additionalPrompt,
       });
 
-      setCurrentJob(job);
-
-      // Start polling
-      const interval = setInterval(() => pollJobStatus(job.id), 2000);
-      setPollingInterval(interval);
+      // Set job ID - React Query will poll automatically via useBatchJob
+      setCurrentJobId(job.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start render');
       setPhase('configure');
@@ -221,16 +175,12 @@ export default function RenderPage() {
   };
 
   const handleCancelRender = async () => {
-    if (!currentJob) return;
+    if (!currentJobId) return;
 
     try {
-      await cancelBatchJob(currentJob.id);
-      if (pollingInterval) {
-        clearInterval(pollingInterval);
-        setPollingInterval(null);
-      }
+      await cancelBatchJobMutation.mutateAsync(currentJobId);
       setPhase('configure');
-      setCurrentJob(null);
+      setCurrentJobId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to cancel render');
     }
@@ -238,7 +188,7 @@ export default function RenderPage() {
 
   const handleNewRender = () => {
     setPhase('configure');
-    setCurrentJob(null);
+    setCurrentJobId(null);
   };
 
   const updateRoomMaterial = (roomId: string, surface: keyof RoomMaterials, materialId: string) => {
@@ -276,11 +226,13 @@ export default function RenderPage() {
     );
   }
 
-  if (error && !project) {
+  if ((error || projectError) && !project) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="card text-center py-12">
-          <p className="text-red-600 mb-4">{error}</p>
+          <p className="text-red-600 mb-4">
+            {error || (projectError instanceof Error ? projectError.message : 'Failed to load project')}
+          </p>
           <a href="/" className="btn-primary">
             Back to Projects
           </a>

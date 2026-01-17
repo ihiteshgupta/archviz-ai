@@ -1,47 +1,32 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Plus, RefreshCw } from 'lucide-react';
 import { FileUpload, ProjectCard } from '@/components';
-import {
-  listProjects,
-  createProject,
-  deleteProject,
-  uploadFile,
-} from '@/lib/api';
+import { useProjects, useCreateProject, useDeleteProject, useUploadFile } from '@/lib/hooks';
+import { uploadFile } from '@/lib/api';
 import type { Project } from '@/types';
 
 export default function Home() {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
+  // React Query hooks
+  const { data: projects = [], isLoading: loading, error: queryError, refetch } = useProjects();
+  const createProjectMutation = useCreateProject();
+  const deleteProjectMutation = useDeleteProject();
+
   const [showNewProject, setShowNewProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectDesc, setNewProjectDesc] = useState('');
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const loadProjects = async () => {
-    try {
-      setLoading(true);
-      const data = await listProjects();
-      setProjects(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load projects');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadProjects();
-  }, []);
-
   const handleCreateProject = async () => {
     if (!newProjectName.trim()) return;
 
     try {
-      const project = await createProject(newProjectName, newProjectDesc || undefined);
-      setProjects((prev) => [project, ...prev]);
+      const project = await createProjectMutation.mutateAsync({
+        name: newProjectName,
+        description: newProjectDesc || undefined,
+      });
       setCurrentProject(project);
       setShowNewProject(false);
       setNewProjectName('');
@@ -55,15 +40,9 @@ export default function Home() {
     if (!currentProject) return;
 
     try {
-      const result = await uploadFile(currentProject.id, file);
-      // Update project in list
-      setProjects((prev) =>
-        prev.map((p) =>
-          p.id === currentProject.id
-            ? { ...p, status: 'parsed', file_name: result.file_name, floor_plan: result.floor_plan }
-            : p
-        )
-      );
+      await uploadFile(currentProject.id, file);
+      // React Query will refetch projects automatically due to cache invalidation
+      refetch();
       setCurrentProject(null);
     } catch (err) {
       throw err; // Let FileUpload handle the error
@@ -74,8 +53,7 @@ export default function Home() {
     if (!confirm(`Delete project "${project.name}"?`)) return;
 
     try {
-      await deleteProject(project.id);
-      setProjects((prev) => prev.filter((p) => p.id !== project.id));
+      await deleteProjectMutation.mutateAsync(project.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete project');
     }
@@ -101,7 +79,7 @@ export default function Home() {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={loadProjects}
+            onClick={() => refetch()}
             className="btn-secondary flex items-center gap-2"
           >
             <RefreshCw className="w-4 h-4" />
