@@ -4,9 +4,9 @@ Builds a planar graph from wall segments where nodes are endpoints
 and edges are wall segments. Uses R-tree for efficient spatial queries.
 """
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Set
 import uuid
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Set, Tuple
 
 from rtree import index
 
@@ -22,7 +22,7 @@ class GraphNode:
     position: Point2D = (0.0, 0.0)
     edge_ids: List[str] = field(default_factory=list)
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.id)
 
 
@@ -34,7 +34,7 @@ class GraphEdge:
     node_ids: Tuple[str, str] = ("", "")
     wall_id: str = ""
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.id)
 
 
@@ -78,7 +78,8 @@ class WallGraph:
         if node_a.id == node_b.id:
             return
 
-        edge_key = tuple(sorted([node_a.id, node_b.id]))
+        ids = sorted([node_a.id, node_b.id])
+        edge_key: Tuple[str, str] = (ids[0], ids[1])
         if edge_key in self._edge_set:
             return
 
@@ -111,7 +112,9 @@ class WallGraph:
 
         return node
 
-    def find_node_near(self, position: Point2D, tolerance: Optional[float] = None) -> Optional[GraphNode]:
+    def find_node_near(
+        self, position: Point2D, tolerance: Optional[float] = None
+    ) -> Optional[GraphNode]:
         """Find a node within tolerance of the given position."""
         if tolerance is None:
             tolerance = self.snap_tolerance
@@ -127,7 +130,11 @@ class WallGraph:
 
         for item in candidates:
             node_id = item.object
-            node = self.nodes[node_id]
+            if node_id is None:
+                continue
+            node = self.nodes.get(node_id)
+            if node is None:
+                continue
             dist = distance(position, node.position)
             if dist <= tolerance and dist < best_dist:
                 best_dist = dist
