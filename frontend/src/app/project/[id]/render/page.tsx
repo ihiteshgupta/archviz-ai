@@ -17,6 +17,8 @@ import {
   Sun,
   Moon,
   Sunset,
+  Square,
+  CheckSquare,
 } from 'lucide-react';
 import {
   getProject,
@@ -28,6 +30,8 @@ import {
   getBatchJob,
   cancelBatchJob,
 } from '@/lib/api';
+import { cleanRoomName, getShortRoomLabel } from '@/lib/utils';
+import FloorPlanMiniMap from '@/components/FloorPlanMiniMap';
 import type {
   Project,
   RenderStyle,
@@ -66,6 +70,9 @@ export default function RenderPage() {
   // Room material assignments: { roomId: { floor: materialId, wall: materialId, ceiling: materialId } }
   const [roomMaterials, setRoomMaterials] = useState<Record<string, RoomMaterials>>({});
 
+  // Room selection for rendering
+  const [selectedRooms, setSelectedRooms] = useState<Set<string>>(new Set());
+
   // Batch job tracking
   const [currentJob, setCurrentJob] = useState<BatchRenderJob | null>(null);
   const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
@@ -90,17 +97,20 @@ export default function RenderPage() {
         setMaterials(materialsData.materials);
         setPipelineStatus(statusData);
 
-        // Initialize room materials with defaults
+        // Initialize room materials with defaults and select all rooms
         if (projectData.floor_plan?.rooms) {
           const initialMaterials: Record<string, RoomMaterials> = {};
+          const allRoomIds = new Set<string>();
           projectData.floor_plan.rooms.forEach((room) => {
             initialMaterials[room.id] = {
               floor: 'white_oak_light',
               wall: 'white_matte',
               ceiling: 'white_matte',
             };
+            allRoomIds.add(room.id);
           });
           setRoomMaterials(initialMaterials);
+          setSelectedRooms(allRoomIds);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load data');
@@ -140,15 +150,21 @@ export default function RenderPage() {
   }, [pollingInterval]);
 
   const handleStartRender = async () => {
-    if (!project?.floor_plan?.rooms) return;
+    if (!project?.floor_plan?.rooms || selectedRooms.size === 0) return;
 
     try {
       setError(null);
       setPhase('rendering');
 
-      // Build material assignments
+      // Filter rooms to only selected ones
+      const roomsToRender = project.floor_plan.rooms.filter((room) =>
+        selectedRooms.has(room.id)
+      );
+
+      // Build material assignments only for selected rooms
       const materialAssignments: MaterialAssignment[] = [];
       Object.entries(roomMaterials).forEach(([roomId, mats]) => {
+        if (!selectedRooms.has(roomId)) return;
         if (mats.floor) {
           materialAssignments.push({
             surface_id: `${roomId}_floor`,
@@ -175,12 +191,14 @@ export default function RenderPage() {
         }
       });
 
-      // Start batch render
+      // Start batch render with only selected rooms
       const job = await startBatchRender({
         floor_plan_id: project.id,
-        rooms: project.floor_plan.rooms.map((room) => ({
+        rooms: roomsToRender.map((room) => ({
           id: room.id,
-          name: room.name || room.room_type || `Room ${room.id}`,
+          name: cleanRoomName(room.name) !== 'Unnamed Room'
+            ? cleanRoomName(room.name)
+            : getShortRoomLabel(room.name, room.room_type, room.id),
           room_type: room.room_type,
           polygon: room.polygon,
         })),
@@ -373,22 +391,47 @@ export default function RenderPage() {
         {/* Render Results Grid */}
         {currentJob.results.length > 0 && (
           <div className="mb-8">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Rendered Images</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Rendered Images</h2>
+              <span className="text-sm text-gray-500">
+                {currentJob.results.length} render{currentJob.results.length !== 1 ? 's' : ''}
+              </span>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {currentJob.results.map((result) => (
-                <div key={result.room_id} className="card overflow-hidden">
-                  <div className="aspect-square bg-gray-100 relative">
+                <div
+                  key={result.room_id}
+                  className="card overflow-hidden group hover:shadow-lg transition-shadow"
+                >
+                  <div className="aspect-square bg-gray-100 relative overflow-hidden">
                     <img
                       src={result.image_url}
                       alt={result.room_name}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = '/placeholder-render.png';
                       }}
                     />
+                    {/* Success badge */}
+                    <div className="absolute top-2 right-2 bg-green-500 text-white p-1 rounded-full">
+                      <CheckCircle className="w-4 h-4" />
+                    </div>
+                    {/* Quick view overlay */}
+                    <a
+                      href={result.image_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center"
+                    >
+                      <span className="text-white opacity-0 group-hover:opacity-100 transition-opacity text-sm font-medium">
+                        Click to view full size
+                      </span>
+                    </a>
                   </div>
                   <div className="p-4">
-                    <h3 className="font-semibold text-gray-900">{result.room_name}</h3>
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="font-semibold text-gray-900">{result.room_name}</h3>
+                    </div>
                     <p className="text-sm text-gray-500 mt-1 line-clamp-2">
                       {result.revised_prompt}
                     </p>
@@ -493,16 +536,163 @@ export default function RenderPage() {
               Assign materials to each room. These will be used to generate photorealistic renders.
             </p>
 
+            {/* Room Selection Controls */}
+            <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium text-gray-700">
+                  {selectedRooms.size} of {rooms.length} rooms selected
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setSelectedRooms(new Set(rooms.map((r) => r.id)))}
+                  className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                >
+                  Select All
+                </button>
+                <span className="text-gray-300">|</span>
+                <button
+                  onClick={() => setSelectedRooms(new Set())}
+                  className="text-sm text-gray-500 hover:text-gray-700 font-medium"
+                >
+                  Deselect All
+                </button>
+              </div>
+            </div>
+
+            {/* Apply to All Rooms */}
+            <div className="p-4 bg-primary-50 border border-primary-200 rounded-lg mb-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-medium text-primary-800">Apply to All Rooms</span>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-primary-700 mb-1">
+                    Floor
+                  </label>
+                  <select
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setRoomMaterials((prev) => {
+                          const updated = { ...prev };
+                          rooms.forEach((room) => {
+                            updated[room.id] = { ...updated[room.id], floor: e.target.value };
+                          });
+                          return updated;
+                        });
+                      }
+                    }}
+                    className="w-full px-2 py-1.5 text-sm border border-primary-300 rounded focus:ring-1 focus:ring-primary-500 bg-white"
+                    defaultValue=""
+                  >
+                    <option value="" disabled>Select...</option>
+                    {floorMaterials.map((mat) => (
+                      <option key={mat.id} value={mat.id}>
+                        {mat.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-primary-700 mb-1">
+                    Walls
+                  </label>
+                  <select
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setRoomMaterials((prev) => {
+                          const updated = { ...prev };
+                          rooms.forEach((room) => {
+                            updated[room.id] = { ...updated[room.id], wall: e.target.value };
+                          });
+                          return updated;
+                        });
+                      }
+                    }}
+                    className="w-full px-2 py-1.5 text-sm border border-primary-300 rounded focus:ring-1 focus:ring-primary-500 bg-white"
+                    defaultValue=""
+                  >
+                    <option value="" disabled>Select...</option>
+                    {wallMaterials.map((mat) => (
+                      <option key={mat.id} value={mat.id}>
+                        {mat.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-primary-700 mb-1">
+                    Ceiling
+                  </label>
+                  <select
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setRoomMaterials((prev) => {
+                          const updated = { ...prev };
+                          rooms.forEach((room) => {
+                            updated[room.id] = { ...updated[room.id], ceiling: e.target.value };
+                          });
+                          return updated;
+                        });
+                      }
+                    }}
+                    className="w-full px-2 py-1.5 text-sm border border-primary-300 rounded focus:ring-1 focus:ring-primary-500 bg-white"
+                    defaultValue=""
+                  >
+                    <option value="" disabled>Select...</option>
+                    {ceilingMaterials.map((mat) => (
+                      <option key={mat.id} value={mat.id}>
+                        {mat.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-4">
-              {rooms.map((room) => (
-                <div key={room.id} className="p-4 bg-gray-50 rounded-lg">
+              {rooms.map((room) => {
+                const isSelected = selectedRooms.has(room.id);
+                return (
+                <div
+                  key={room.id}
+                  className={`p-4 rounded-lg border-2 transition-colors ${
+                    isSelected
+                      ? 'bg-gray-50 border-gray-200'
+                      : 'bg-gray-50/50 border-gray-100 opacity-60'
+                  }`}
+                >
                   <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <div className="font-medium text-gray-900">
-                        {room.name || room.room_type || `Room ${room.id}`}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {room.area?.toFixed(1)} m² • {room.room_type}
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => {
+                          setSelectedRooms((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(room.id)) {
+                              next.delete(room.id);
+                            } else {
+                              next.add(room.id);
+                            }
+                            return next;
+                          });
+                        }}
+                        className="text-primary-600 hover:text-primary-700"
+                      >
+                        {isSelected ? (
+                          <CheckSquare className="w-5 h-5" />
+                        ) : (
+                          <Square className="w-5 h-5" />
+                        )}
+                      </button>
+                      <div>
+                        <div className="font-medium text-gray-900">
+                          {cleanRoomName(room.name) !== 'Unnamed Room'
+                            ? cleanRoomName(room.name)
+                            : getShortRoomLabel(room.name, room.room_type, room.id)}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {room.area?.toFixed(1)} m² • {room.room_type}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -563,7 +753,8 @@ export default function RenderPage() {
                     </div>
                   </div>
                 </div>
-              ))}
+              );
+              })}
             </div>
           </div>
 
@@ -595,6 +786,9 @@ export default function RenderPage() {
 
         {/* Settings Sidebar */}
         <div className="space-y-6">
+          {/* Floor Plan Preview */}
+          <FloorPlanMiniMap projectId={projectId} />
+
           {/* Lighting Settings */}
           <div className="card">
             <div className="flex items-center gap-2 mb-4">
@@ -687,20 +881,27 @@ export default function RenderPage() {
           <div className="card">
             <button
               onClick={handleStartRender}
-              disabled={!pipelineStatus?.available}
+              disabled={!pipelineStatus?.available || selectedRooms.size === 0}
               className="w-full btn-primary flex items-center justify-center gap-2 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Zap className="w-5 h-5" />
-              Render {rooms.length} Room{rooms.length > 1 ? 's' : ''}
+              Render {selectedRooms.size} Room{selectedRooms.size !== 1 ? 's' : ''}
             </button>
             {!pipelineStatus?.available && (
               <p className="text-xs text-red-500 text-center mt-2">
                 DALL-E API not configured. Check Azure OpenAI settings.
               </p>
             )}
-            <p className="text-xs text-gray-500 text-center mt-2">
-              ~30 seconds per room
-            </p>
+            {selectedRooms.size === 0 && (
+              <p className="text-xs text-amber-600 text-center mt-2">
+                Select at least one room to render
+              </p>
+            )}
+            {selectedRooms.size > 0 && pipelineStatus?.available && (
+              <p className="text-xs text-gray-500 text-center mt-2">
+                ~30 seconds per room
+              </p>
+            )}
           </div>
         </div>
       </div>

@@ -576,6 +576,9 @@ class DWGParser:
 
             self._floor_plan.rooms.append(room)
 
+        # Deduplicate rooms (remove overlapping/duplicate rooms)
+        self._deduplicate_rooms()
+
         logger.info(f"Detected {len(self._floor_plan.rooms)} rooms from walls")
 
     def _build_room_context(self, polygon: List[Point2D]) -> RoomContext:
@@ -706,3 +709,92 @@ class DWGParser:
                     logger.debug(f"Could not extract text from entity: {e}")
 
         return texts
+
+    def _deduplicate_rooms(self) -> None:
+        """Remove duplicate or significantly overlapping rooms.
+
+        Deduplication rules:
+        1. Rooms with centroids very close together (< 0.5m) are considered duplicates
+        2. Rooms with the same name (after normalization) are considered duplicates
+        3. Rooms with > 80% area overlap are considered duplicates
+        For duplicates, keep the room with the larger area.
+        """
+        if self._floor_plan is None or len(self._floor_plan.rooms) < 2:
+            return
+
+        rooms = self._floor_plan.rooms
+        to_remove: set[int] = set()
+
+        for i, room_a in enumerate(rooms):
+            if i in to_remove:
+                continue
+
+            centroid_a = polygon_centroid(room_a.polygon)
+
+            for j in range(i + 1, len(rooms)):
+                if j in to_remove:
+                    continue
+
+                room_b = rooms[j]
+                centroid_b = polygon_centroid(room_b.polygon)
+
+                # Check 1: Centroids very close together
+                dx = centroid_a[0] - centroid_b[0]
+                dy = centroid_a[1] - centroid_b[1]
+                distance = (dx**2 + dy**2) ** 0.5
+
+                is_duplicate = False
+
+                if distance < 0.5:  # Less than 0.5 meters apart
+                    is_duplicate = True
+                    logger.debug(
+                        f"Rooms {i} and {j} have close centroids (distance={distance:.2f}m)"
+                    )
+
+                # Check 2: Same name (normalized)
+                if not is_duplicate and room_a.name and room_b.name:
+                    name_a = room_a.name.lower().strip()
+                    name_b = room_b.name.lower().strip()
+                    # Remove common formatting codes for comparison
+                    for code in ["\\a1;", "\\p", "\\f", "{", "}"]:
+                        name_a = name_a.replace(code, "")
+                        name_b = name_b.replace(code, "")
+                    if name_a == name_b:
+                        is_duplicate = True
+                        logger.debug(f"Rooms {i} and {j} have same name: {room_a.name}")
+
+                # Check 3: Significant area overlap (check if one contains the other's centroid)
+                if not is_duplicate:
+                    # Simple containment check - if centroid of smaller room
+                    # is inside larger room, likely a duplicate
+                    if room_a.area > room_b.area:
+                        if point_in_polygon(centroid_b, room_a.polygon):
+                            area_ratio = room_b.area / room_a.area
+                            if area_ratio > 0.7:  # B is 70%+ the size of A
+                                is_duplicate = True
+                                logger.debug(
+                                    f"Room {j} centroid inside room {i}, area ratio={area_ratio:.2f}"
+                                )
+                    else:
+                        if point_in_polygon(centroid_a, room_b.polygon):
+                            area_ratio = room_a.area / room_b.area
+                            if area_ratio > 0.7:  # A is 70%+ the size of B
+                                is_duplicate = True
+                                logger.debug(
+                                    f"Room {i} centroid inside room {j}, area ratio={area_ratio:.2f}"
+                                )
+
+                if is_duplicate:
+                    # Keep the larger room, mark smaller for removal
+                    if room_a.area >= room_b.area:
+                        to_remove.add(j)
+                    else:
+                        to_remove.add(i)
+                        break  # Room A will be removed, stop comparing it
+
+        # Remove duplicates
+        if to_remove:
+            logger.info(f"Removing {len(to_remove)} duplicate rooms")
+            self._floor_plan.rooms = [
+                room for idx, room in enumerate(rooms) if idx not in to_remove
+            ]
