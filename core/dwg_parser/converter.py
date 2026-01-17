@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 ODA_PATHS = [
     # macOS
     "/Applications/ODAFileConverter.app/Contents/MacOS/ODAFileConverter",
+    os.path.expanduser("~/Applications/ODAFileConverter.app/Contents/MacOS/ODAFileConverter"),
     "/usr/local/bin/ODAFileConverter",
     # Linux
     "/usr/bin/ODAFileConverter",
