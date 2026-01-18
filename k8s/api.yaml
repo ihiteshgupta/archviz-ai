@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: archviz-api
+  namespace: archviz
+  labels:
+    app: archviz-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: archviz-api
+  template:
+    metadata:
+      labels:
+        app: archviz-api
+    spec:
+      containers:
+      - name: api
+        image: archviz-api:latest
+        imagePullPolicy: Never  # Use local image
+        ports:
+        - containerPort: 8000
+        envFrom:
+        - configMapRef:
+            name: archviz-config
+        - secretRef:
+            name: archviz-secrets
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        volumeMounts:
+        - name: uploads
+          mountPath: /app/uploads
+        - name: output
+          mountPath: /app/output
+      volumes:
+      - name: uploads
+        emptyDir: {}
+      - name: output
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: archviz-api
+  namespace: archviz
+spec:
+  selector:
+    app: archviz-api
+  ports:
+  - port: 8000
+    targetPort: 8000
+  type: ClusterIP

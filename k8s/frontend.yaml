@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: archviz-frontend
+  namespace: archviz
+  labels:
+    app: archviz-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: archviz-frontend
+  template:
+    metadata:
+      labels:
+        app: archviz-frontend
+    spec:
+      containers:
+      - name: frontend
+        image: archviz-frontend:latest
+        imagePullPolicy: Never  # Use local image
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NEXT_PUBLIC_API_URL
+          value: "http://archviz-api:8000"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "250m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: archviz-frontend
+  namespace: archviz
+spec:
+  selector:
+    app: archviz-frontend
+  ports:
+  - port: 3000
+    targetPort: 3000
+    nodePort: 30000
+  type: NodePort

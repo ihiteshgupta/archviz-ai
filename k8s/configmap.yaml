@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: archviz-config
+  namespace: archviz
+data:
+  ENVIRONMENT: "development"
+  API_HOST: "0.0.0.0"
+  API_PORT: "8000"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: archviz-secrets
+  namespace: archviz
+type: Opaque
+stringData:
+  # Add your Azure OpenAI credentials here
+  AZURE_OPENAI_ENDPOINT: ""
+  AZURE_OPENAI_API_KEY: ""
+  AZURE_OPENAI_API_VERSION: "2024-02-15-preview"
+  AZURE_OPENAI_GPT4_DEPLOYMENT: "gpt-4o"
+  AZURE_OPENAI_DALLE_DEPLOYMENT: "dall-e-3"
+  AZURE_STORAGE_CONNECTION_STRING: ""
