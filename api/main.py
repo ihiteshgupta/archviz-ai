@@ -8,9 +8,10 @@ from typing import AsyncGenerator
 from dotenv import load_dotenv
 load_dotenv()  # Load .env file
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from .routes import projects, render, materials, health, chat, notifications
 
@@ -28,6 +29,16 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 
+class ProxyHeadersMiddleware(BaseHTTPMiddleware):
+    """Middleware to handle X-Forwarded-Proto for HTTPS redirects behind a reverse proxy."""
+
+    async def dispatch(self, request: Request, call_next):
+        # Trust the X-Forwarded-Proto header from Azure Container Apps
+        if request.headers.get("x-forwarded-proto") == "https":
+            request.scope["scheme"] = "https"
+        return await call_next(request)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator:
     """Application lifespan handler."""
@@ -43,6 +54,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Proxy headers middleware (must be added first)
+app.add_middleware(ProxyHeadersMiddleware)
+
 # CORS middleware for frontend
 app.add_middleware(
     CORSMiddleware,
@@ -50,6 +64,7 @@ app.add_middleware(
         "http://localhost:3000",
         "http://localhost:3001",
         "http://127.0.0.1:3000",
+        "https://archviz-frontend.gentleground-d7f4772e.eastus.azurecontainerapps.io",
     ],
     allow_credentials=True,
     allow_methods=["*"],
