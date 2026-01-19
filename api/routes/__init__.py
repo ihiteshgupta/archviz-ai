@@ -1,5 +1,5 @@
 """API Routes"""
 
-from . import projects, render, materials, health, chat, notifications
+from . import projects, render, materials, health, chat, notifications, room_pipeline
 
-__all__ = ["projects", "render", "materials", "health", "chat", "notifications"]
+__all__ = ["projects", "render", "materials", "health", "chat", "notifications", "room_pipeline"]
