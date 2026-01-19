@@ -147,3 +147,37 @@ class TestShellBuilder:
 
         # Wall with multiple openings should have even more faces
         assert len(south_wall.faces) > len(solid_south.faces)
+
+    def test_exports_complete_shell_to_gltf(self):
+        """Complete shell should export to valid glTF file."""
+        import tempfile
+        import os
+
+        room_data = {
+            "id": "room_1",
+            "polygon": [[0, 0], [5, 0], [5, 4], [0, 4]],
+            "doors": [{"wall_index": 0, "position": 2.0, "width": 0.9, "height": 2.1}],
+        }
+
+        builder = ShellBuilder(room_data)
+
+        with tempfile.NamedTemporaryFile(suffix=".glb", delete=False) as f:
+            output_path = f.name
+
+        try:
+            builder.export_gltf(output_path)
+
+            assert os.path.exists(output_path)
+            assert os.path.getsize(output_path) > 0
+
+            # Verify it's valid glTF by loading it
+            import trimesh
+            scene = trimesh.load(output_path)
+
+            # Should have floor, ceiling, and walls
+            mesh_names = list(scene.geometry.keys())
+            assert any("floor" in name.lower() for name in mesh_names)
+            assert any("ceiling" in name.lower() for name in mesh_names)
+            assert any("wall" in name.lower() for name in mesh_names)
+        finally:
+            os.unlink(output_path)

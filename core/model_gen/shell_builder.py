@@ -224,3 +224,28 @@ class ShellBuilder:
         ])
 
         return trimesh.convex.convex_hull(vertices)
+
+    def build_shell(self) -> trimesh.Scene:
+        """Build complete room shell as a trimesh Scene."""
+        scene = trimesh.Scene()
+
+        # Add floor
+        floor = self.build_floor()
+        scene.add_geometry(floor, node_name="floor", geom_name="floor")
+
+        # Add ceiling
+        ceiling = self.build_ceiling()
+        scene.add_geometry(ceiling, node_name="ceiling", geom_name="ceiling")
+
+        # Add walls
+        walls = self.build_walls()
+        for i, wall in enumerate(walls):
+            name = f"wall_{i}"
+            scene.add_geometry(wall, node_name=name, geom_name=name)
+
+        return scene
+
+    def export_gltf(self, output_path: str) -> None:
+        """Export complete shell to glTF/GLB file."""
+        scene = self.build_shell()
+        scene.export(output_path)
