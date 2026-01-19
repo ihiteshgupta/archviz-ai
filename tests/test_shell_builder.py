@@ -56,3 +56,94 @@ class TestShellBuilder:
             bounds = wall.bounds
             assert np.isclose(bounds[0][1], 0, atol=0.01)  # min y = 0
             assert np.isclose(bounds[1][1], 2.7, atol=0.01)  # max y = 2.7
+
+    def test_walls_have_door_cutouts(self):
+        """Walls should have boolean cutouts for doors."""
+        room_data = {
+            "id": "room_1",
+            "polygon": [[0, 0], [5, 0], [5, 4], [0, 4]],
+            "doors": [
+                {
+                    "wall_index": 0,  # South wall (0,0 to 5,0)
+                    "position": 2.0,  # 2m from start of wall
+                    "width": 0.9,
+                    "height": 2.1,
+                }
+            ],
+        }
+
+        builder = ShellBuilder(room_data, wall_height=2.7)
+        walls = builder.build_walls()
+
+        # South wall should have opening (fewer faces than solid wall)
+        south_wall = walls[0]
+        solid_builder = ShellBuilder({"id": "x", "polygon": room_data["polygon"]})
+        solid_walls = solid_builder.build_walls()
+        solid_south = solid_walls[0]
+
+        # Wall with door should have more faces due to cutout geometry
+        assert len(south_wall.faces) > len(solid_south.faces)
+
+    def test_walls_have_window_cutouts(self):
+        """Walls should have boolean cutouts for windows."""
+        room_data = {
+            "id": "room_1",
+            "polygon": [[0, 0], [5, 0], [5, 4], [0, 4]],
+            "windows": [
+                {
+                    "wall_index": 1,  # East wall (5,0 to 5,4)
+                    "position": 1.0,  # 1m from start of wall
+                    "width": 1.2,
+                    "height": 1.0,
+                    "sill_height": 0.9,  # Window starts at 0.9m
+                }
+            ],
+        }
+
+        builder = ShellBuilder(room_data, wall_height=2.7)
+        walls = builder.build_walls()
+
+        # East wall should have opening
+        east_wall = walls[1]
+        solid_builder = ShellBuilder({"id": "x", "polygon": room_data["polygon"]})
+        solid_walls = solid_builder.build_walls()
+        solid_east = solid_walls[1]
+
+        # Wall with window should have more faces due to cutout geometry
+        assert len(east_wall.faces) > len(solid_east.faces)
+
+    def test_multiple_openings_on_same_wall(self):
+        """A wall can have multiple doors and windows."""
+        room_data = {
+            "id": "room_1",
+            "polygon": [[0, 0], [8, 0], [8, 4], [0, 4]],  # 8m wide wall
+            "doors": [
+                {
+                    "wall_index": 0,
+                    "position": 1.0,
+                    "width": 0.9,
+                    "height": 2.1,
+                }
+            ],
+            "windows": [
+                {
+                    "wall_index": 0,
+                    "position": 5.0,
+                    "width": 1.5,
+                    "height": 1.2,
+                    "sill_height": 0.9,
+                }
+            ],
+        }
+
+        builder = ShellBuilder(room_data, wall_height=2.7)
+        walls = builder.build_walls()
+
+        # South wall should have both openings
+        south_wall = walls[0]
+        solid_builder = ShellBuilder({"id": "x", "polygon": room_data["polygon"]})
+        solid_walls = solid_builder.build_walls()
+        solid_south = solid_walls[0]
+
+        # Wall with multiple openings should have even more faces
+        assert len(south_wall.faces) > len(solid_south.faces)
