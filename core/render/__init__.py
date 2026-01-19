@@ -23,6 +23,7 @@ Example usage:
 """
 
 from .batch import BatchRenderer
+from .blender_renderer import BlenderRenderer, RenderConfig as BlenderRenderConfig
 from .job_manager import JobManager
 from .prompt_builder import PromptBuilder
 from .renderer import (
@@ -43,6 +44,8 @@ __all__ = [
     # Renderers
     "RoomRenderer",
     "BatchRenderer",
+    "BlenderRenderer",
+    "BlenderRenderConfig",
     # Support classes
     "PromptBuilder",
     "JobManager",
