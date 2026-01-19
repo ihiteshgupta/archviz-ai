@@ -14,6 +14,7 @@ Usage:
 
 from .exporter import SceneExporter, export_scene
 from .extruder import FloorCeilingExtruder, WallExtruder
+from .furniture_placer import FurniturePlacer
 from .generator import GeneratorConfig, ModelGenerator
 from .openings import OpeningProcessor
 from .types import Mesh3D, Scene3D
@@ -31,4 +32,6 @@ __all__ = [
     "WallExtruder",
     "FloorCeilingExtruder",
     "OpeningProcessor",
+    # AI-guided placement
+    "FurniturePlacer",
 ]
