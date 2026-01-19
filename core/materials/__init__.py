@@ -29,6 +29,7 @@ from .presets import (
     list_presets,
 )
 from .suggester import MaterialSuggester
+from .texture_generator import TextureGenerator
 from .types import Material, MaterialAssignment
 
 __all__ = [
@@ -41,6 +42,8 @@ __all__ = [
     "MaterialFetcher",
     # Suggester
     "MaterialSuggester",
+    # Texture Generator
+    "TextureGenerator",
     # Presets
     "StylePreset",
     "PresetName",
