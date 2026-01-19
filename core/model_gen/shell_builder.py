@@ -57,3 +57,39 @@ class ShellBuilder:
 
         mesh = trimesh.Trimesh(vertices=vertices_3d, faces=faces)
         return mesh
+
+    def build_walls(self) -> list[trimesh.Trimesh]:
+        """Generate wall meshes for each polygon edge."""
+        walls = []
+        n = len(self.polygon)
+
+        for i in range(n):
+            p1 = self.polygon[i]
+            p2 = self.polygon[(i + 1) % n]
+
+            wall = self._create_wall_quad(p1, p2)
+            walls.append(wall)
+
+        return walls
+
+    def _create_wall_quad(
+        self,
+        p1: np.ndarray,
+        p2: np.ndarray
+    ) -> trimesh.Trimesh:
+        """Create a wall quad between two floor points."""
+        # Four corners of the wall
+        vertices = np.array([
+            [p1[0], 0, p1[1]],              # bottom-left
+            [p2[0], 0, p2[1]],              # bottom-right
+            [p2[0], self.wall_height, p2[1]],  # top-right
+            [p1[0], self.wall_height, p1[1]],  # top-left
+        ])
+
+        # Two triangles forming the quad (facing inward)
+        faces = np.array([
+            [0, 1, 2],
+            [0, 2, 3],
+        ])
+
+        return trimesh.Trimesh(vertices=vertices, faces=faces)

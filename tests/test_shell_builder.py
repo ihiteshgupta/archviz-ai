@@ -38,3 +38,21 @@ class TestShellBuilder:
         bounds = ceiling_mesh.bounds
         assert np.isclose(bounds[0][1], 2.7, atol=0.01)  # min y = 2.7
         assert np.isclose(bounds[1][1], 2.7, atol=0.01)  # max y = 2.7
+
+    def test_generates_walls_from_polygon_edges(self):
+        """Walls should be generated for each edge of the polygon."""
+        room_data = {
+            "id": "room_1",
+            "polygon": [[0, 0], [5, 0], [5, 4], [0, 4]],  # 4 edges
+        }
+
+        builder = ShellBuilder(room_data, wall_height=2.7)
+        walls = builder.build_walls()
+
+        assert len(walls) == 4  # One wall per edge
+
+        # Each wall should span from y=0 to y=2.7
+        for wall in walls:
+            bounds = wall.bounds
+            assert np.isclose(bounds[0][1], 0, atol=0.01)  # min y = 0
+            assert np.isclose(bounds[1][1], 2.7, atol=0.01)  # max y = 2.7
