@@ -18,6 +18,7 @@ from .furniture_library import FURNITURE_DEFAULTS, FurnitureLibrary
 from .furniture_placer import FurniturePlacer
 from .generator import GeneratorConfig, ModelGenerator
 from .openings import OpeningProcessor
+from .shell_builder import ShellBuilder
 from .types import Mesh3D, Scene3D
 
 __all__ = [
@@ -26,6 +27,8 @@ __all__ = [
     "GeneratorConfig",
     "Scene3D",
     "Mesh3D",
+    # Shell generation
+    "ShellBuilder",
     # Export utilities
     "SceneExporter",
     "export_scene",
