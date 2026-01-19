@@ -14,6 +14,7 @@ Usage:
 
 from .exporter import SceneExporter, export_scene
 from .extruder import FloorCeilingExtruder, WallExtruder
+from .furniture_library import FURNITURE_DEFAULTS, FurnitureLibrary
 from .furniture_placer import FurniturePlacer
 from .generator import GeneratorConfig, ModelGenerator
 from .openings import OpeningProcessor
@@ -34,4 +35,7 @@ __all__ = [
     "OpeningProcessor",
     # AI-guided placement
     "FurniturePlacer",
+    # Furniture assets
+    "FurnitureLibrary",
+    "FURNITURE_DEFAULTS",
 ]
