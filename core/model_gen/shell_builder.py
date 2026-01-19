@@ -39,3 +39,21 @@ class ShellBuilder:
         # Create mesh
         mesh = trimesh.Trimesh(vertices=vertices_3d, faces=tri.simplices)
         return mesh
+
+    def build_ceiling(self) -> trimesh.Trimesh:
+        """Generate ceiling mesh at wall_height from room polygon."""
+        from scipy.spatial import Delaunay
+
+        vertices_2d = self.polygon
+        tri = Delaunay(vertices_2d)
+
+        vertices_3d = np.zeros((len(vertices_2d), 3))
+        vertices_3d[:, 0] = vertices_2d[:, 0]
+        vertices_3d[:, 1] = self.wall_height  # ceiling at wall height
+        vertices_3d[:, 2] = vertices_2d[:, 1]
+
+        # Reverse face winding for ceiling to face downward
+        faces = tri.simplices[:, ::-1]
+
+        mesh = trimesh.Trimesh(vertices=vertices_3d, faces=faces)
+        return mesh
