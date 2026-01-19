@@ -58,6 +58,28 @@ def find_oda_converter() -> Optional[str]:
     return None
 
 
+def find_libredwg_converter() -> Optional[str]:
+    """Find LibreDWG dwg2dxf executable."""
+    try:
+        result = subprocess.run(
+            ["which", "dwg2dxf"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        pass
+
+    # Check common paths
+    for path in ["/usr/bin/dwg2dxf", "/usr/local/bin/dwg2dxf"]:
+        if os.path.isfile(path):
+            return path
+
+    return None
+
+
 def convert_dwg_to_dxf(
     dwg_path: str | Path,
     output_dir: Optional[str | Path] = None,
@@ -76,7 +98,7 @@ def convert_dwg_to_dxf(
 
     Raises:
         FileNotFoundError: If input file doesn't exist
-        RuntimeError: If ODA File Converter is not available
+        RuntimeError: If no DWG converter is available
     """
     dwg_path = Path(dwg_path)
 
@@ -86,14 +108,6 @@ def convert_dwg_to_dxf(
     if not dwg_path.suffix.lower() == ".dwg":
         raise ValueError(f"Expected .dwg file, got: {dwg_path.suffix}")
 
-    # Find converter
-    converter_path = find_oda_converter()
-    if not converter_path:
-        raise RuntimeError(
-            "ODA File Converter not found. Please install from: "
-            "https://www.opendesign.com/guestfiles/oda_file_converter"
-        )
-
     # Set up output directory
     if output_dir is None:
         output_dir = dwg_path.parent
@@ -101,6 +115,66 @@ def convert_dwg_to_dxf(
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
+    # Try LibreDWG first (open-source, installed in container)
+    libredwg_path = find_libredwg_converter()
+    if libredwg_path:
+        result = _convert_with_libredwg(dwg_path, output_dir, libredwg_path)
+        if result:
+            return result
+        logger.warning("LibreDWG conversion failed, trying ODA...")
+
+    # Fall back to ODA File Converter
+    oda_path = find_oda_converter()
+    if oda_path:
+        return _convert_with_oda(dwg_path, output_dir, oda_path, dxf_version)
+
+    raise RuntimeError(
+        "No DWG converter available. Install LibreDWG (apt-get install libredwg-tools) "
+        "or ODA File Converter from: https://www.opendesign.com/guestfiles/oda_file_converter"
+    )
+
+
+def _convert_with_libredwg(
+    dwg_path: Path, output_dir: Path, converter_path: str
+) -> Optional[Path]:
+    """Convert DWG to DXF using LibreDWG's dwg2dxf tool."""
+    dxf_name = dwg_path.stem + ".dxf"
+    output_path = output_dir / dxf_name
+
+    cmd = [converter_path, "-o", str(output_path), str(dwg_path)]
+    logger.info(f"Running LibreDWG converter: {' '.join(cmd)}")
+
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+
+        if result.returncode != 0:
+            logger.error(f"LibreDWG converter error: {result.stderr}")
+            return None
+
+        if output_path.exists():
+            logger.info(f"Converted {dwg_path} to {output_path} using LibreDWG")
+            return output_path
+
+        logger.error(f"DXF output not found at {output_path}")
+        return None
+
+    except subprocess.TimeoutExpired:
+        logger.error("LibreDWG converter timed out")
+        return None
+    except Exception as e:
+        logger.error(f"LibreDWG converter failed: {e}")
+        return None
+
+
+def _convert_with_oda(
+    dwg_path: Path, output_dir: Path, converter_path: str, dxf_version: str
+) -> Optional[Path]:
+    """Convert DWG to DXF using ODA File Converter."""
     # Create temporary input directory (ODA works with directories)
     with tempfile.TemporaryDirectory() as temp_input:
         # Copy DWG to temp input
@@ -161,7 +235,7 @@ def convert_dwg_to_dxf(
             final_dxf = output_dir / dxf_name
             shutil.copy2(temp_dxf, final_dxf)
 
-            logger.info(f"Converted {dwg_path} to {final_dxf}")
+            logger.info(f"Converted {dwg_path} to {final_dxf} using ODA")
             return final_dxf
 
 

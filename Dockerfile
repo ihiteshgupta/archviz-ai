@@ -3,11 +3,26 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies and build LibreDWG from source for DWG to DXF conversion
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    git \
+    automake \
+    autoconf \
+    libtool \
+    texinfo \
+    && rm -rf /var/lib/apt/lists/* \
+    # Build LibreDWG from source
+    && cd /tmp \
+    && git clone --depth 1 https://github.com/LibreDWG/libredwg.git \
+    && cd libredwg \
+    && sh autogen.sh \
+    && ./configure --disable-bindings \
+    && make -j$(nproc) \
+    && make install \
+    && ldconfig \
+    && cd / && rm -rf /tmp/libredwg
 
 # Copy project files
 COPY pyproject.toml .
