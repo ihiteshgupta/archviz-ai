@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from .routes import projects, render, materials, health, chat, notifications
+from .routes import projects, render, materials, health, chat, notifications, room_pipeline
 
 # Configure logging
 logging.basicConfig(
@@ -78,6 +78,7 @@ app.include_router(render.router, prefix="/api/render", tags=["Render"])
 app.include_router(materials.router, prefix="/api/materials", tags=["Materials"])
 app.include_router(chat.router, prefix="/api/chat", tags=["Chat"])
 app.include_router(notifications.router, prefix="/api/notifications", tags=["Notifications"])
+app.include_router(room_pipeline.router)
 
 # Serve static files (uploads and outputs)
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
