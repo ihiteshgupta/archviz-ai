@@ -327,7 +327,7 @@ async def get_materials_by_category(category: str):
     try:
         cat = MaterialCategory(category)
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid category")
+        raise HTTPException(status_code=404, detail="Category not found")
 
     materials = [m.model_dump() for m in MATERIALS if m.category == cat]
     return {"category": category, "materials": materials}

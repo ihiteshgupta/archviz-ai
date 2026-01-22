@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +48,16 @@ class RenderRequest(BaseModel):
     views: list[str] = ["default"]  # Camera views to render
     resolution: int = 1024
     upscale: bool = True
+
+    @field_validator('resolution')
+    @classmethod
+    def resolution_must_be_positive(cls, v: int) -> int:
+        """Validate that resolution is positive."""
+        if v <= 0:
+            raise ValueError('Resolution must be a positive integer')
+        if v > 4096:
+            raise ValueError('Resolution cannot exceed 4096')
+        return v
 
 
 class RenderJobResponse(BaseModel):
@@ -162,6 +172,9 @@ def get_style_description(style: RenderStyle) -> str:
 # Quick Concept Render (DALL-E 3)
 # =============================================================================
 
+VALID_RENDER_SIZES = {"1024x1024", "1792x1024", "1024x1792"}
+
+
 class QuickRenderRequest(BaseModel):
     """Quick render request using DALL-E 3."""
 
@@ -170,6 +183,14 @@ class QuickRenderRequest(BaseModel):
     materials: Optional[dict] = None  # Optional material specifications
     additional_details: Optional[str] = None  # Extra description
     size: str = "1024x1024"  # "1024x1024", "1792x1024", "1024x1792"
+
+    @field_validator('size')
+    @classmethod
+    def size_must_be_valid(cls, v: str) -> str:
+        """Validate that size is one of the allowed values."""
+        if v not in VALID_RENDER_SIZES:
+            raise ValueError(f'Size must be one of: {", ".join(sorted(VALID_RENDER_SIZES))}')
+        return v
 
 
 # Lazy-loaded OpenAI service

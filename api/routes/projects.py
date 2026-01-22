@@ -1,6 +1,7 @@
 """Project management routes."""
 
 import logging
+import re
 import shutil
 import uuid
 from datetime import datetime
@@ -8,7 +9,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from core.dwg_parser import DWGParser, FloorPlan
 
@@ -21,11 +22,56 @@ PROJECTS: dict = {}
 UPLOAD_DIR = Path("uploads")
 
 
+def sanitize_filename(filename: str) -> str:
+    """Sanitize filename to prevent path traversal and other security issues.
+
+    - Removes path separators and parent directory references
+    - Removes null bytes
+    - Limits length
+    - Keeps only the basename
+    """
+    # Remove null bytes
+    filename = filename.replace("\x00", "")
+
+    # Get only the basename (removes any path components)
+    filename = Path(filename).name
+
+    # Remove any remaining path traversal attempts
+    filename = filename.replace("..", "").replace("/", "").replace("\\", "")
+
+    # Remove any control characters
+    filename = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', filename)
+
+    # Limit length
+    if len(filename) > 255:
+        # Preserve extension
+        name, ext = Path(filename).stem, Path(filename).suffix
+        filename = name[:255 - len(ext)] + ext
+
+    # If filename is empty after sanitization, use a default
+    if not filename or filename == ".":
+        filename = "unknown_file"
+
+    return filename
+
+
 class ProjectCreate(BaseModel):
     """Project creation request."""
 
     name: str
     description: Optional[str] = None
+
+    @field_validator('name')
+    @classmethod
+    def name_must_not_be_empty(cls, v: str) -> str:
+        """Validate that name is not empty or whitespace-only."""
+        if not v or not v.strip():
+            raise ValueError('Project name cannot be empty or whitespace-only')
+        # Trim and limit length
+        v = v.strip()
+        if len(v) > 255:
+            v = v[:255]
+        return v
 
 
 class ProjectResponse(BaseModel):
@@ -112,6 +158,9 @@ async def upload_file(project_id: str, file: UploadFile = File(...)):
         raise HTTPException(
             status_code=400, detail="Invalid file type. Only .dwg and .dxf files are supported."
         )
+
+    # Sanitize filename to prevent path traversal
+    filename = sanitize_filename(filename)
 
     # Save uploaded file
     project_dir = UPLOAD_DIR / project_id
