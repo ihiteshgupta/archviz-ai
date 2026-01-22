@@ -4,135 +4,220 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-ArchViz AI is an AI-powered architectural visualization platform that transforms DWG/DXF CAD files into photorealistic renders and interactive walkthroughs. It features an LLM-powered material selection assistant using Azure OpenAI.
+ArchViz AI transforms DWG/DXF CAD files into photorealistic renders and interactive walkthroughs using Azure OpenAI (GPT-4o + DALL-E 3). Available as web app and Electron desktop app.
 
-**Three-Tier Architecture:**
-- **Backend**: FastAPI (Python) on port 8000 - API server, DWG parsing, AI orchestration
-- **Frontend**: Next.js + React (TypeScript) on port 3000 - Web UI with Three.js 3D visualization
-- **Desktop**: Electron - Native app with local GPU rendering and offline mode
+**Architecture**: FastAPI (8000) ← Next.js proxy (3000) → React/Three.js UI
+
+**Data Flow**:
+```
+DWG Upload → DWG→DXF Conversion → Floor Plan Parse → 3D Model Gen →
+Material Selection (LLM) → DALL-E Render → Video Walkthrough
+```
+
+**Workspaces**: Monorepo with npm workspaces (`frontend/`, `electron/`) orchestrated from root `package.json`
 
 ## Development Commands
 
-### Quick Start
+### Setup & Run
 ```bash
-npm run setup           # Install all dependencies (Python + Node.js)
-npm run dev             # Start API + Frontend concurrently
-```
+npm run setup               # Install all deps (Python + Node.js)
+npm run dev                 # Start API + Frontend together (via concurrently)
+npm run dev:api             # FastAPI only (port 8000)
+npm run dev:frontend        # Next.js only (port 3000)
+npm run dev:electron        # Electron desktop app
 
-### Running Services
-```bash
-npm run dev:api         # FastAPI backend only (port 8000)
-npm run dev:frontend    # Next.js frontend only (port 3000)
-npm run dev:electron    # Electron in dev mode
-make start              # Alternative: start all services
-make stop               # Stop all services
+# Or use Makefile shortcuts
+make start                  # Start backend and frontend
+make backend                # Backend only
+make frontend               # Frontend only
 ```
 
 ### Testing
 ```bash
-# Python tests (from project root)
-pytest tests/                              # All tests
-pytest tests/ -m "not integration"         # Skip integration tests (no Azure required)
-pytest tests/test_chat.py -v               # Specific test file
-pytest tests/ --cov=api --cov=core         # With coverage
+# Backend (pytest)
+pytest tests/                               # All tests
+pytest tests/ -m "not integration"          # Skip Azure-dependent tests
+pytest tests/test_chat.py::test_name -v     # Single test
+pytest tests/ --cov=api --cov=core          # With coverage
+pytest tests/ --cov-report=html             # HTML coverage report
 
-# Test script shortcuts
-./scripts/test.sh unit          # Unit tests only
-./scripts/test.sh integration   # Integration tests (requires Azure)
-./scripts/test.sh coverage      # Generate coverage report
-./scripts/test.sh quick         # Quick smoke test
+# Frontend (Jest)
+cd frontend && npm test                     # Run all tests
+cd frontend && npm run test:watch           # Watch mode
+cd frontend && npm run test:coverage        # With coverage
+
+# Makefile shortcuts
+make test                   # Run all backend tests
+make test-unit              # Unit tests only
+make test-integration       # Integration tests only
+make test-coverage          # Tests with HTML coverage report
+make test-quick             # Quick smoke test
 ```
 
-### Building
+### Linting & Formatting
 ```bash
-npm run build                   # Build frontend + electron
-npm run package:mac             # Build macOS app
-npm run package:win             # Build Windows app
-npm run package:linux           # Build Linux app
+# Python (configured in pyproject.toml)
+black api/ core/            # Format Python code (100 char line length)
+ruff check api/ core/       # Lint Python code
+mypy api/ core/             # Type checking (strict mode)
+
+# TypeScript
+cd frontend && npm run lint # ESLint for Next.js/React
 ```
 
-### API Testing
+### Build & Package
 ```bash
-make render-test    # Test render endpoint
-make chat-test      # Test chat endpoint
+npm run build               # Build frontend + electron
+npm run build:frontend      # Next.js production build
+npm run build:electron      # Electron build
+
+# Desktop app packaging
+npm run package:mac         # macOS .app bundle
+npm run package:win         # Windows installer
+npm run package:linux       # Linux AppImage
 ```
 
-## Architecture
-
-```
-archviz-ai/
-├── api/                    # FastAPI backend
-│   ├── main.py             # App initialization, router registration
-│   ├── routes/             # API endpoints
-│   │   ├── health.py       # Health checks, GPU status
-│   │   ├── projects.py     # Project CRUD
-│   │   ├── render.py       # Render job orchestration
-│   │   ├── materials.py    # Material library
-│   │   ├── chat.py         # LLM chat interface
-│   │   └── notifications.py
-│   └── services/           # Business logic
-├── core/                   # Core processing modules
-│   ├── dwg_parser/         # DWG/DXF parsing with ezdxf
-│   │   ├── parser.py       # Main parsing logic
-│   │   ├── elements.py     # Wall, Door, Window, Room models
-│   │   └── converter.py    # DWG to DXF conversion
-│   ├── azure/              # Azure integration
-│   │   ├── config.py       # Configuration
-│   │   ├── openai_service.py   # GPT-4o, DALL-E 3 client
-│   │   └── storage_service.py  # Blob storage
-│   ├── materials/          # Material system (planned)
-│   ├── model_gen/          # 3D model generation (planned)
-│   ├── render/             # AI rendering pipeline (planned)
-│   └── walkthrough/        # Video/splat generation (planned)
-├── frontend/               # Next.js App Router
-│   └── src/
-│       ├── app/            # Pages (page.tsx, layout.tsx)
-│       ├── components/     # React components
-│       │   ├── FloorPlan3DViewer.tsx  # Three.js visualization
-│       │   ├── FileUpload.tsx
-│       │   └── ProjectCard.tsx
-│       ├── lib/            # API client, utilities
-│       └── types/          # TypeScript definitions
-├── electron/               # Desktop app
-│   └── src/
-│       ├── main.ts         # Main process
-│       └── preload.ts      # Preload script
-├── tests/                  # pytest test suite
-└── scripts/                # dev.sh, test.sh, demo.sh
+### Utility Commands
+```bash
+make clean                  # Remove generated files, caches
+make render-test            # Test quick render endpoint
+make chat-test              # Test chat endpoint
+make status                 # Show service status
 ```
 
-## Key Patterns
+## Key Architecture
 
-**API Layer**: Routes define endpoints, delegate to services. All routes use async/await.
+**API Routing**: Frontend calls `/api/*` → Next.js rewrites to `localhost:8000/api/*` (see `frontend/next.config.js`)
 
-**DWG Parsing Flow**: `DWGParser.parse()` → extracts architectural elements → returns `FloorPlan` with walls, doors, windows, rooms.
+**Route Structure** (`api/routes/`):
+- `projects.py` - CRUD for projects, file upload, floor plan parsing
+- `render.py` - Single room renders, batch render jobs, pipeline status
+- `materials.py` - Material library, categories, style presets
+- `chat.py` - LLM chat with project context
+- `room_pipeline.py` - Room shell generation pipeline
+- `notifications.py` - Firebase push notifications
 
-**Azure Integration**: `AzureOpenAIService` wraps GPT-4o for chat and DALL-E 3 for image generation. Config loaded from environment variables.
+**Core Services** (`core/`):
+- `azure/openai_service.py` - `AzureOpenAIService` wraps GPT-4o (chat, vision) and DALL-E 3 (image gen)
+- `dwg_parser/parser.py` - `DWGParser.parse()` extracts walls, doors, windows, rooms from DXF
+- `dwg_parser/converter.py` - DWG to DXF conversion via LibreDWG
+- `model_gen/generator.py` - Orchestrates 3D scene generation from floor plans
+- `model_gen/shell_builder.py` - Creates wall, floor, ceiling meshes
+- `model_gen/furniture_placer.py` - GPT-4 powered furniture layout planning
+- `materials/library.py` - Material database with PBR textures
+- `materials/suggester.py` - LLM-based material recommendations
+- `render/renderer.py` - DALL-E render pipeline
+- `render/blender_renderer.py` - Blender-based high-quality rendering
+- `walkthrough/video_generator.py` - Video export from camera paths
 
-**Frontend State**: React hooks + API client (`lib/api.ts`). Three.js rendering via React Three Fiber.
+**Frontend** (`frontend/src/`):
+- `lib/api.ts` - Typed API client with `fetchAPI<T>()` wrapper
+- `components/FloorPlan3DViewer.tsx` - React Three Fiber 3D visualization
+- State: React Query (`@tanstack/react-query`) for server state
 
-## Environment Setup
+**Storage**: In-memory dict for development (`PROJECTS` in `api/routes/projects.py`). Files in `uploads/` and `output/` directories.
 
-Copy `.env.example` to `.env` and configure:
-- `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY` - Required for LLM/image features
-- `AZURE_OPENAI_GPT4_DEPLOYMENT`, `AZURE_OPENAI_DALLE_DEPLOYMENT` - Model deployment names
-- `AZURE_STORAGE_*` - Blob storage for file uploads
+## Environment Variables
 
-## Code Style
+Copy `.env.example` to `.env`:
+```
+AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
+AZURE_OPENAI_API_KEY=...
+AZURE_OPENAI_GPT4_DEPLOYMENT=gpt-4o
+AZURE_OPENAI_DALLE_DEPLOYMENT=dall-e-3
+AZURE_STORAGE_ACCOUNT_NAME=...  # For file uploads
+```
 
-**Python**: Black (100 char), Ruff linter, mypy strict mode
-**TypeScript**: ESLint via Next.js
+## Code Style & Validation
 
-**Test Markers**:
-- `@pytest.mark.integration` - Tests requiring Azure services
-- `@pytest.mark.slow` - Long-running tests
+### Python
+- **Formatter**: Black (100 char line length)
+- **Linter**: Ruff (E, F, I, N, W rules enabled)
+- **Type Checker**: mypy (strict mode)
+- **Config**: `pyproject.toml`
 
-## Tech Stack Reference
+### TypeScript
+- **Linter**: ESLint via Next.js defaults
+- **Config**: `frontend/.eslintrc.json`
 
-| Layer | Technology |
-|-------|------------|
-| Backend | FastAPI, uvicorn, ezdxf, trimesh, numpy |
-| LLM/Vision | Azure OpenAI (GPT-4o, DALL-E 3) |
-| Frontend | Next.js 14, React 18, Three.js, Tailwind CSS |
-| Desktop | Electron 28, electron-builder |
-| Testing | pytest, pytest-asyncio, pytest-cov |
+### Input Validation (Critical)
+All API endpoints use Pydantic models with field validators:
+- **File uploads**: Path traversal prevention via `sanitize_filename()`
+- **Project names**: Non-empty, max 255 chars, trimmed
+- **Resolutions**: Positive integers, max 4096
+- **Render sizes**: Valid DALL-E sizes only (`1024x1024`, `1792x1024`, `1024x1792`)
+- **Material categories**: Return 404 for invalid categories
+
+See `api/routes/projects.py`, `api/routes/render.py`, `api/routes/materials.py` for examples.
+
+### Testing Conventions
+- **Test markers**: `@pytest.mark.integration` (needs Azure), `@pytest.mark.slow`
+- **Coverage target**: >80% for API routes, >70% for core modules
+- **Frontend**: Jest with React Testing Library
+- **Test files**: Follow `test_*.py` pattern, classes `Test*`, functions `test_*`
+
+## Hardware Requirements (GPU Features)
+
+| Stage | Minimum | Recommended |
+|-------|---------|-------------|
+| DWG Parsing | CPU only | - |
+| 3D Generation | 6GB VRAM | 16GB VRAM |
+| Rendering | 12GB VRAM | 24GB VRAM |
+| Video Gen | 16GB VRAM | 24GB VRAM |
+
+## Important Implementation Details
+
+### Request/Response Flow
+1. Frontend makes request to `/api/*`
+2. Next.js proxy rewrites to `localhost:8000/api/*` (see `frontend/next.config.js`)
+3. FastAPI handles request, returns JSON
+4. Frontend uses typed `fetchAPI<T>()` wrapper from `lib/api.ts`
+5. React Query manages server state caching
+
+### State Management
+- **Server state**: React Query (`@tanstack/react-query`)
+- **Client state**: React hooks (useState, useContext)
+- **3D viewer**: React Three Fiber with imperative refs
+
+### In-Memory Storage (Development)
+Projects stored in `PROJECTS` dict in `api/routes/projects.py`. Files saved to:
+- `uploads/{project_id}/` - Uploaded DWG/DXF files
+- `output/{job_id}/` - Render outputs
+
+**Note**: No database in MVP. Production will use PostgreSQL + Redis.
+
+### Azure OpenAI Integration
+Lazy-loaded services (only initialized when needed):
+- `get_dalle_service()` - DALL-E 3 image generation
+- `get_openai_service()` - GPT-4o chat completions
+- Graceful fallback when Azure not configured (returns 503)
+
+### Render Pipeline Architecture
+Two render modes:
+1. **Quick render** (`/api/render/quick`) - Direct DALL-E 3 generation
+2. **Batch pipeline** (`/api/render/batch`) - Multi-room concurrent rendering with job tracking
+
+Job manager tracks: `pending → processing → completed/failed`
+
+### DWG/DXF Parsing
+LibreDWG compiles from source in Docker for native DWG support. Falls back to ezdxf for DXF-only parsing.
+
+## Deployment
+
+- **Kubernetes**: `k8s/` directory with namespace, configmap, api/frontend deployments
+- **Azure Container Apps**: Configured via GitHub Actions (`.github/workflows/`)
+- Build outputs: `frontend/.next/standalone` (Next.js standalone mode)
+- **Docker**: `Dockerfile` builds LibreDWG from source for native DWG parsing
+
+## Known Issues & Gotchas
+
+1. **Batch render timeout**: `test_batch_many_rooms` times out in CI with large batches - use smaller batch sizes in production
+2. **Firebase notifications**: Currently low coverage (28%) - integration tests needed
+3. **Electron desktop app**: Separate workspace, development in progress
+4. **GPU requirements**: Some features require CUDA (12GB+ VRAM for rendering)
+
+## Documentation
+
+- **Test Plan**: `docs/TEST_PLAN.md` - Comprehensive QA document
+- **Test Execution Report**: `docs/TEST_EXECUTION_REPORT.md` - Latest test run results
+- **Architecture**: See README.md for high-level pipeline diagram
