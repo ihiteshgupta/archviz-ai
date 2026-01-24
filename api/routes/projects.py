@@ -8,6 +8,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+import ezdxf
+from ezdxf.addons.drawing import RenderContext, Frontend
+from ezdxf.addons.drawing.svg import SVGBackend
+from ezdxf.addons.drawing.layout import Page, Units, Settings
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel, field_validator
 
@@ -220,22 +224,70 @@ async def get_floor_plan(project_id: str):
 
 @router.get("/{project_id}/preview")
 async def get_preview(project_id: str):
-    """Get SVG preview of floor plan."""
+    """Get SVG preview of floor plan rendered from DXF file."""
     if project_id not in PROJECTS:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    floor_plan = PROJECTS[project_id].get("floor_plan")
-    if not floor_plan:
-        raise HTTPException(status_code=404, detail="Floor plan not parsed yet")
+    project = PROJECTS[project_id]
+    file_name = project.get("file_name")
+    if not file_name:
+        raise HTTPException(status_code=404, detail="No file uploaded yet")
 
-    # Generate simple SVG preview
-    svg = generate_svg_preview(floor_plan)
+    # Find the DXF file (could be .dxf or converted from .dwg)
+    project_dir = UPLOAD_DIR / project_id
+    dxf_path = project_dir / file_name
+
+    # If it's a .dwg, look for converted .dxf
+    if dxf_path.suffix.lower() == ".dwg":
+        converted = dxf_path.with_suffix(".dxf")
+        if converted.exists():
+            dxf_path = converted
+        else:
+            raise HTTPException(status_code=404, detail="DXF file not available")
+
+    if not dxf_path.exists():
+        raise HTTPException(status_code=404, detail="File not found on disk")
+
+    try:
+        svg = generate_dxf_svg(dxf_path)
+    except Exception as e:
+        logger.error(f"Failed to render DXF preview: {e}")
+        # Fallback to simple SVG from parsed data
+        floor_plan = project.get("floor_plan")
+        if floor_plan:
+            svg = generate_simple_svg(floor_plan)
+        else:
+            raise HTTPException(status_code=500, detail="Failed to generate preview")
 
     return {"svg": svg, "project_id": project_id}
 
 
-def generate_svg_preview(floor_plan: dict) -> str:
-    """Generate SVG preview from floor plan data."""
+def generate_dxf_svg(file_path: Path) -> str:
+    """Render DXF file to SVG using ezdxf drawing backend."""
+    doc = ezdxf.readfile(str(file_path))
+    msp = doc.modelspace()
+
+    ctx = RenderContext(doc)
+    backend = SVGBackend()
+    frontend = Frontend(ctx, backend)
+    frontend.draw_layout(msp)
+
+    settings = Settings(output_coordinate_space=10000)
+    page = Page(0, 0, units=Units.mm)
+    svg = backend.get_string(page, settings=settings)
+
+    # Remove xml declaration and make responsive for web display
+    svg = svg.replace("<?xml version='1.0' encoding='utf-8'?>\n", "")
+    # Remove fixed width/height, keep only viewBox for responsive sizing
+    import re as re_mod
+    svg = re_mod.sub(r' width="[^"]*"', '', svg)
+    svg = re_mod.sub(r' height="[^"]*"', '', svg)
+
+    return svg
+
+
+def generate_simple_svg(floor_plan: dict) -> str:
+    """Generate simple SVG fallback from parsed floor plan data."""
     bounds = floor_plan.get("metadata", {}).get("bounds", {})
     min_pt = bounds.get("min", [0, 0])
     max_pt = bounds.get("max", [100, 100])
@@ -243,7 +295,6 @@ def generate_svg_preview(floor_plan: dict) -> str:
     width = max_pt[0] - min_pt[0]
     height = max_pt[1] - min_pt[1]
 
-    # Add padding
     padding = max(width, height) * 0.1
     view_min_x = min_pt[0] - padding
     view_min_y = min_pt[1] - padding
@@ -254,7 +305,6 @@ def generate_svg_preview(floor_plan: dict) -> str:
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{view_min_x} {view_min_y} {view_width} {view_height}">'
     ]
 
-    # Draw walls
     svg_parts.append('<g id="walls" stroke="#333" stroke-width="0.1" fill="none">')
     for wall in floor_plan.get("walls", []):
         points = wall.get("points", [])
@@ -265,7 +315,6 @@ def generate_svg_preview(floor_plan: dict) -> str:
             svg_parts.append(f'<path d="{path_data}"/>')
     svg_parts.append("</g>")
 
-    # Draw rooms
     svg_parts.append('<g id="rooms" fill="#e3f2fd" fill-opacity="0.5" stroke="#1976d2" stroke-width="0.05">')
     for room in floor_plan.get("rooms", []):
         polygon = room.get("polygon", [])
@@ -274,23 +323,21 @@ def generate_svg_preview(floor_plan: dict) -> str:
             svg_parts.append(f'<polygon points="{points_str}"/>')
     svg_parts.append("</g>")
 
-    # Draw doors
     svg_parts.append('<g id="doors" fill="#4caf50">')
     for door in floor_plan.get("doors", []):
         pos = door.get("position", [0, 0])
-        width = door.get("width", 0.9)
+        w = door.get("width", 0.9)
         svg_parts.append(
-            f'<rect x="{pos[0] - width/2}" y="{pos[1] - 0.1}" width="{width}" height="0.2"/>'
+            f'<rect x="{pos[0] - w/2}" y="{pos[1] - 0.1}" width="{w}" height="0.2"/>'
         )
     svg_parts.append("</g>")
 
-    # Draw windows
     svg_parts.append('<g id="windows" fill="#2196f3">')
     for window in floor_plan.get("windows", []):
         pos = window.get("position", [0, 0])
-        width = window.get("width", 1.2)
+        w = window.get("width", 1.2)
         svg_parts.append(
-            f'<rect x="{pos[0] - width/2}" y="{pos[1] - 0.05}" width="{width}" height="0.1"/>'
+            f'<rect x="{pos[0] - w/2}" y="{pos[1] - 0.05}" width="{w}" height="0.1"/>'
         )
     svg_parts.append("</g>")
 

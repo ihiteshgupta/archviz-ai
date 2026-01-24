@@ -8,3 +8,4 @@ resources:
   - configmap.yaml
   - api.yaml
   - frontend.yaml
+  - ingress.yaml

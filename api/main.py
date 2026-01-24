@@ -63,6 +63,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "http://localhost:3001",
+        "http://localhost:4000",
         "http://127.0.0.1:3000",
         "https://archviz-frontend.gentleground-d7f4772e.eastus.azurecontainerapps.io",
         "https://ca-archvizaid-frontend.kindstone-cfc3d3d7.westeurope.azurecontainerapps.io",

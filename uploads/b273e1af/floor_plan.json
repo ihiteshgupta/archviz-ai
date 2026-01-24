@@ -1,0 +1,32 @@
+{
+  "metadata": {
+    "filename": "test.dxf",
+    "units": "unitless",
+    "scale": 1.0,
+    "bounds": {
+      "min": [
+        0.0,
+        0.0
+      ],
+      "max": [
+        0.0,
+        0.0
+      ]
+    },
+    "total_area": 0.0,
+    "floor_count": 1
+  },
+  "walls": [],
+  "doors": [],
+  "windows": [],
+  "rooms": [],
+  "dimensions": [],
+  "summary": {
+    "wall_count": 0,
+    "door_count": 0,
+    "window_count": 0,
+    "room_count": 0,
+    "total_wall_length": 0,
+    "total_room_area": 0
+  }
+}

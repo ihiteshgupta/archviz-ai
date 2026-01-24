@@ -7,10 +7,10 @@ interface FloorPlanViewerProps {
   projectId: string;
 }
 
-// Simple SVG sanitizer - only allow safe SVG elements and attributes
+// SVG sanitizer - allow safe SVG elements and attributes including ezdxf output
 function sanitizeSvg(svgString: string): string {
-  const allowedTags = ['svg', 'g', 'path', 'rect', 'polygon', 'circle', 'ellipse', 'line', 'polyline', 'text', 'tspan'];
-  const allowedAttrs = ['viewBox', 'xmlns', 'id', 'class', 'stroke', 'stroke-width', 'fill', 'fill-opacity', 'd', 'x', 'y', 'width', 'height', 'points', 'cx', 'cy', 'r', 'rx', 'ry', 'x1', 'y1', 'x2', 'y2', 'transform'];
+  const allowedTags = ['svg', 'g', 'path', 'rect', 'polygon', 'circle', 'ellipse', 'line', 'polyline', 'text', 'tspan', 'defs', 'style', 'use', 'clipPath', 'mask', 'pattern', 'image'];
+  const allowedAttrs = ['viewBox', 'xmlns', 'id', 'class', 'stroke', 'stroke-width', 'stroke-opacity', 'stroke-linecap', 'stroke-linejoin', 'stroke-dasharray', 'fill', 'fill-opacity', 'fill-rule', 'opacity', 'd', 'x', 'y', 'width', 'height', 'points', 'cx', 'cy', 'r', 'rx', 'ry', 'x1', 'y1', 'x2', 'y2', 'transform', 'clip-path', 'href', 'xlink:href', 'font-size', 'font-family', 'text-anchor', 'dominant-baseline'];
 
   // Create a DOM parser to parse the SVG
   const parser = new DOMParser();
@@ -113,9 +113,9 @@ export default function FloorPlanViewer({ projectId }: FloorPlanViewerProps) {
   }
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-4">
+    <div className="bg-gray-900 rounded-lg border border-gray-700 p-4">
       <div
-        className="w-full h-auto [&>svg]:w-full [&>svg]:h-auto [&>svg]:max-h-[500px]"
+        className="w-full h-auto [&>svg]:w-full [&>svg]:h-auto [&>svg]:max-h-[600px]"
         dangerouslySetInnerHTML={{ __html: sanitizedSvg }}
       />
     </div>
